@@ -33,6 +33,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Validate example data
         run: go run ./cmd/openlinear validate --data-dir examples/basic
 

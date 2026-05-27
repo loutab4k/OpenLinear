@@ -2,8 +2,8 @@
 .github
 .DS_Store
 .env
-.openlinear
-openlinear
-bin
-dist
+/.openlinear
+/openlinear
+/bin
+/dist
 coverage.out
