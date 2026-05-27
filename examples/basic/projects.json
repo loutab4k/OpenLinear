@@ -1,0 +1,17 @@
+[
+  {
+    "id": "backend",
+    "name": "Backend Foundation",
+    "short_name": "Backend"
+  },
+  {
+    "id": "release",
+    "name": "Release Readiness",
+    "short_name": "Release"
+  },
+  {
+    "id": "growth",
+    "name": "Growth Experiments",
+    "short_name": "Growth"
+  }
+]

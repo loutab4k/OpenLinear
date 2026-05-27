@@ -1,0 +1,49 @@
+{
+  "title": "Demo Team · App",
+  "width": 30,
+  "review_alert_hours": 48,
+  "external_link_label": "Open",
+  "main_preview_category": "n",
+  "hidden_category_codes": ["b"],
+  "project_aliases": {
+    "Backend Foundation": "Backend",
+    "Release Readiness": "Release"
+  },
+  "label_aliases": {
+    "documentation": "docs",
+    "infrastructure": "infra"
+  },
+  "categories": [
+    {
+      "code": "n",
+      "label": "Next",
+      "title": "NEXT",
+      "description": "Ready work",
+      "empty_text": "No ready work",
+      "filter": {
+        "statuses": ["Todo", "Backlog"],
+        "exclude_done": true
+      }
+    },
+    {
+      "code": "b",
+      "label": "Backlog",
+      "title": "BACKLOG",
+      "description": "Later work",
+      "empty_text": "Backlog is empty",
+      "filter": {
+        "statuses": ["Backlog"]
+      }
+    },
+    {
+      "code": "a",
+      "label": "Attention",
+      "title": "ATTENTION",
+      "description": "Needs action",
+      "empty_text": "No alerts",
+      "filter": {
+        "attention_only": true
+      }
+    }
+  ]
+}

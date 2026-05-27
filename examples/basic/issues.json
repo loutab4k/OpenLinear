@@ -1,0 +1,52 @@
+[
+  {
+    "id": "DEMO-1",
+    "title": "Create a reusable Telegram status page",
+    "description": "Render the current project state as a compact Telegram TUI.",
+    "status": "In Progress",
+    "priority": 1,
+    "project": "Backend Foundation",
+    "labels": ["telegram", "docs"],
+    "assignee": "Alex",
+    "created_at": "2026-01-02T10:00:00Z",
+    "updated_at": "2026-01-03T10:00:00Z",
+    "url": "https://example.com/issues/DEMO-1"
+  },
+  {
+    "id": "DEMO-2",
+    "title": "Review release checklist",
+    "description": "Check deployment notes, rollback steps and support ownership.",
+    "status": "In Review",
+    "priority": 2,
+    "project": "Release Readiness",
+    "labels": ["release", "docs"],
+    "created_at": "2026-01-01T10:00:00Z",
+    "updated_at": "2026-01-01T10:00:00Z",
+    "url": "https://example.com/issues/DEMO-2"
+  },
+  {
+    "id": "DEMO-3",
+    "title": "Add JSON import validation",
+    "description": "Reject malformed issues before the bot starts polling.",
+    "status": "Backlog",
+    "priority": 3,
+    "project": "Backend Foundation",
+    "labels": ["quality"],
+    "created_at": "2026-01-04T10:00:00Z",
+    "updated_at": "2026-01-04T10:00:00Z",
+    "url": "https://example.com/issues/DEMO-3"
+  },
+  {
+    "id": "DEMO-4",
+    "title": "Prepare launch copy",
+    "description": "Write concise copy for the first public release.",
+    "status": "Todo",
+    "priority": 2,
+    "project": "Growth Experiments",
+    "labels": ["launch", "copy"],
+    "assignee": "Maya",
+    "created_at": "2026-01-05T10:00:00Z",
+    "updated_at": "2026-01-05T10:00:00Z",
+    "url": "https://example.com/issues/DEMO-4"
+  }
+]

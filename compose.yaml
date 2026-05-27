@@ -1,0 +1,13 @@
+services:
+  openlinear:
+    build:
+      context: .
+    environment:
+      OPENLINEAR_BOT_TOKEN: ${OPENLINEAR_BOT_TOKEN:-}
+      OPENLINEAR_CHAT_ID: ${OPENLINEAR_CHAT_ID:-}
+      OPENLINEAR_STATUS_MESSAGE_ID: ${OPENLINEAR_STATUS_MESSAGE_ID:-}
+      OPENLINEAR_STATE_PATH: /state/state.json
+    volumes:
+      - ./openlinear:/data
+      - ./.openlinear:/state
+    command: ["run", "--data-dir", "/data"]
