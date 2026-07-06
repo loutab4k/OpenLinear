@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"html"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -87,7 +86,7 @@ func (a *App) Validate(ctx context.Context) error {
 	}
 	now := time.Now()
 	for _, page := range tui.RenderAll(store, now) {
-		if err := tui.ValidatePage(page, store.Settings.Width); err != nil {
+		if err := tui.ValidatePage(page); err != nil {
 			return err
 		}
 	}
@@ -101,11 +100,66 @@ func (a *App) Render(ctx context.Context, request tui.PageRequest) (string, erro
 		return "", err
 	}
 	page := tui.Render(store, request, time.Now())
-	if err := tui.ValidatePage(page, store.Settings.Width); err != nil {
+	if err := tui.ValidatePage(page); err != nil {
 		return "", err
 	}
 	_ = ctx
 	return page.Text, nil
+}
+
+func (a *App) mutate(fn func(*tracker.Store, time.Time) error) error {
+	store, err := tracker.LoadDir(a.cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	if err := fn(&store, time.Now()); err != nil {
+		return err
+	}
+	if err := store.Validate(); err != nil {
+		return err
+	}
+	return tracker.WriteIssues(a.cfg.DataDir, store.Issues)
+}
+
+func (a *App) IssueAdd(in tracker.Issue) (tracker.Issue, error) {
+	var created tracker.Issue
+	err := a.mutate(func(s *tracker.Store, now time.Time) error {
+		var e error
+		created, e = s.AddIssue(in, now)
+		return e
+	})
+	return created, err
+}
+
+func (a *App) IssueMove(id string, status string) error {
+	return a.mutate(func(s *tracker.Store, now time.Time) error { return s.SetStatus(id, status, now) })
+}
+
+func (a *App) IssueAssign(id string, name string) error {
+	return a.mutate(func(s *tracker.Store, now time.Time) error { return s.Assign(id, name, now) })
+}
+
+func (a *App) IssueArchive(id string) error {
+	return a.mutate(func(s *tracker.Store, now time.Time) error { return s.Archive(id, now) })
+}
+
+// RenderJSON emits the current board state (progress + active issues) as JSON
+// for agents/scripts that want structure instead of the rendered TUI.
+func (a *App) RenderJSON() (string, error) {
+	store, err := tracker.LoadDir(a.cfg.DataDir)
+	if err != nil {
+		return "", err
+	}
+	out := struct {
+		Title    string           `json:"title"`
+		Progress tracker.Progress `json:"progress"`
+		Issues   []tracker.Issue  `json:"issues"`
+	}{store.Settings.Title, store.Progress(), store.ActiveIssues()}
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (a *App) Sync(ctx context.Context) error {
@@ -117,7 +171,7 @@ func (a *App) Sync(ctx context.Context) error {
 		return err
 	}
 	page := tui.Render(store, tui.PageRequest{Kind: tui.PageMain}, time.Now())
-	return a.editOrSend(ctx, page, store.Settings.Width)
+	return a.editOrSend(ctx, page)
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -159,20 +213,20 @@ func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
 	store, err := tracker.LoadDir(a.cfg.DataDir)
 	if err != nil {
 		page := tui.RenderLoadError(tracker.DefaultSettings(), time.Now())
-		return a.editOrSend(ctx, page, tracker.DefaultSettings().Width)
+		return a.editOrSend(ctx, page)
 	}
 
 	if update.CallbackQuery != nil {
 		request := ParseCallback(update.CallbackQuery.Data)
 		page := tui.Render(store, request, time.Now())
-		return a.editOrSend(ctx, page, store.Settings.Width)
+		return a.editOrSend(ctx, page)
 	}
 
 	if update.Message != nil {
 		request := ParseCommand(update.Message.Text)
 		if !request.IsZero() {
 			page := tui.Render(store, request, time.Now())
-			return a.editOrSend(ctx, page, store.Settings.Width)
+			return a.editOrSend(ctx, page)
 		}
 	}
 
@@ -264,8 +318,8 @@ func CallbackFor(request tui.PageRequest) string {
 	return request.Category
 }
 
-func (a *App) editOrSend(ctx context.Context, page tui.Page, width int) error {
-	if err := tui.ValidatePage(page, width); err != nil {
+func (a *App) editOrSend(ctx context.Context, page tui.Page) error {
+	if err := tui.ValidatePage(page); err != nil {
 		return err
 	}
 	state, err := a.loadState()
@@ -277,7 +331,6 @@ func (a *App) editOrSend(ctx context.Context, page tui.Page, width int) error {
 		messageID = state.MessageID
 	}
 
-	text := htmlPre(page.Text)
 	keyboard := keyboard(page.Buttons)
 	client, err := a.telegramClient()
 	if err != nil {
@@ -287,8 +340,7 @@ func (a *App) editOrSend(ctx context.Context, page tui.Page, width int) error {
 		err = client.EditMessageText(ctx, telegram.EditMessageTextRequest{
 			ChatID:      a.cfg.ChatID,
 			MessageID:   int64(messageID),
-			Text:        text,
-			ParseMode:   "HTML",
+			RichHTML:    page.HTML,
 			ReplyMarkup: &keyboard,
 		})
 		if err == nil || telegram.IsMessageNotModified(err) {
@@ -299,10 +351,9 @@ func (a *App) editOrSend(ctx context.Context, page tui.Page, width int) error {
 		}
 	}
 
-	result, err := client.SendMessage(ctx, telegram.SendMessageRequest{
+	result, err := client.SendRichMessage(ctx, telegram.SendRichMessageRequest{
 		ChatID:      a.cfg.ChatID,
-		Text:        text,
-		ParseMode:   "HTML",
+		HTML:        page.HTML,
 		ReplyMarkup: &keyboard,
 	})
 	if err != nil {
@@ -381,10 +432,6 @@ func keyboard(rows [][]tui.Button) telegram.InlineKeyboardMarkup {
 		out.InlineKeyboard = append(out.InlineKeyboard, items)
 	}
 	return out
-}
-
-func htmlPre(text string) string {
-	return "<pre>" + html.EscapeString(text) + "</pre>"
 }
 
 func env(key string, fallback string) string {

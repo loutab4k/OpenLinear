@@ -43,3 +43,15 @@ jobs:
 
       - name: Render smoke test
         run: go run ./cmd/openlinear render --data-dir examples/basic > /tmp/openlinear-render.txt
+
+      - name: Issue commands smoke test
+        run: |
+          dir="$(mktemp -d)/openlinear"
+          go run ./cmd/openlinear init --data-dir "$dir"
+          id="$(go run ./cmd/openlinear issue add --data-dir "$dir" --title 'CI smoke' --priority 1 --labels ci,smoke)"
+          go run ./cmd/openlinear issue move   --data-dir "$dir" "$id" 'In Progress'
+          go run ./cmd/openlinear issue assign --data-dir "$dir" "$id" 'CI'
+          go run ./cmd/openlinear issue done   --data-dir "$dir" "$id"
+          go run ./cmd/openlinear issue archive --data-dir "$dir" "$id"
+          go run ./cmd/openlinear validate --data-dir "$dir"
+          go run ./cmd/openlinear render --data-dir "$dir" --json > /tmp/openlinear-board.json

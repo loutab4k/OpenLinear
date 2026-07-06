@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"html"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +15,12 @@ const (
 	PageMain  = "main"
 	PageMenu  = "menu"
 	PageIssue = "issue"
+)
+
+// Telegram rich-message limits we care about (Bot API 10.1).
+const (
+	maxRichChars = 32768
+	barWidth     = 10
 )
 
 type PageRequest struct {
@@ -28,7 +36,10 @@ func (r PageRequest) IsZero() bool {
 	return r.Kind == "" && r.IssueID == "" && r.Category == "" && r.Page == 0 && r.Back == "" && r.BackPage == 0
 }
 
+// Page carries a rich-HTML body (for Telegram rich_message) plus a plain-text
+// rendering of the same content for CLI preview and tests.
 type Page struct {
+	HTML    string
 	Text    string
 	Buttons [][]Button
 }
@@ -42,12 +53,11 @@ type Button struct {
 type renderer struct {
 	store tracker.Store
 	now   time.Time
-	width int
 }
 
 func Render(store tracker.Store, request PageRequest, now time.Time) Page {
 	store.Settings = store.Settings.WithDefaults()
-	r := renderer{store: store, now: now, width: store.Settings.Width}
+	r := renderer{store: store, now: now}
 	switch {
 	case request.Category != "":
 		return r.categoryPage(request)
@@ -55,8 +65,6 @@ func Render(store tracker.Store, request PageRequest, now time.Time) Page {
 		return r.menuPage()
 	case request.Kind == PageIssue:
 		return r.issuePage(request)
-	case request.Kind == "" || request.Kind == PageMain:
-		return r.mainPage()
 	default:
 		return r.mainPage()
 	}
@@ -64,51 +72,45 @@ func Render(store tracker.Store, request PageRequest, now time.Time) Page {
 
 func RenderLoadError(settings tracker.Settings, now time.Time) Page {
 	settings = settings.WithDefaults()
-	r := renderer{store: tracker.Store{Settings: settings}, now: now, width: settings.Width}
+	r := renderer{store: tracker.Store{Settings: settings}, now: now}
 	return r.messagePage("load error", "could not load tracker data", "Retry", "r:m")
+}
+
+func newPage(htmlBody string, buttons [][]Button) Page {
+	return Page{HTML: htmlBody, Text: htmlToText(htmlBody), Buttons: buttons}
 }
 
 func (r renderer) mainPage() Page {
 	progress := r.store.Progress()
 	var b strings.Builder
-	r.header(&b, "upd "+relativeAge(r.now, r.now))
-	r.progressBlock(&b, progress)
-	r.issueBlock(&b, "DOING", r.issuesByStatus(tracker.StatusInProgress), 3)
-	r.issueBlock(&b, "REVIEW", r.issuesByStatus(tracker.StatusInReview), 3)
+	r.header(&b, "updated "+relativeAge(r.now, r.now))
+	r.progressTable(&b, progress)
+	r.issueSection(&b, "Doing", r.issuesByStatus(tracker.StatusInProgress), 3)
+	r.issueSection(&b, "Review", r.issuesByStatus(tracker.StatusInReview), 3)
 	next := r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory)
-	r.issueBlock(&b, fmt.Sprintf("NEXT %d", len(next)), next, 3)
-	r.attentionBlock(&b)
-	r.hiddenBlock(&b, progress)
-	b.WriteByte('\n')
-	b.WriteString(strings.Repeat("─", r.width))
-	b.WriteByte('\n')
-	b.WriteString(r.fit("/menu /refresh"))
-	return Page{
-		Text: r.enforce(strings.TrimRight(b.String(), "\n")),
-		Buttons: [][]Button{{
-			{Text: "Refresh", CallbackData: "r:m"},
-			{Text: "Menu", CallbackData: "p"},
-		}},
-	}
+	r.issueSection(&b, fmt.Sprintf("Next (%d)", len(next)), next, 3)
+	r.attentionSection(&b)
+	r.hiddenSection(&b)
+	return newPage(b.String(), [][]Button{{
+		{Text: "Refresh", CallbackData: "r:m"},
+		{Text: "Menu", CallbackData: "p"},
+	}})
 }
 
 func (r renderer) menuPage() Page {
 	var b strings.Builder
 	r.header(&b, "menu")
-	b.WriteString(r.section(r.store.Settings.Menu.Title))
-	b.WriteByte('\n')
+	r.heading(&b, r.store.Settings.Menu.Title)
+	b.WriteString("<table>")
 	for _, category := range r.store.Settings.Categories {
-		r.summary(&b, category.Label, fmt.Sprintf("%d", len(r.store.IssuesForCategory(category.Code, r.now))))
+		count := len(r.store.IssuesForCategory(category.Code, r.now))
+		b.WriteString(row(esc1(category.Label), fmt.Sprintf("%d", count)))
 	}
-	b.WriteByte('\n')
-	b.WriteString(r.fit("select page below"))
-	return Page{
-		Text: r.enforce(strings.TrimRight(b.String(), "\n")),
-		Buttons: [][]Button{
-			{{Text: "← Main", CallbackData: "m"}},
-			r.categoryMenuButtons(),
-		},
-	}
+	b.WriteString("</table>")
+	return newPage(b.String(), [][]Button{
+		{{Text: "← Main", CallbackData: "m"}},
+		r.categoryMenuButtons(),
+	})
 }
 
 func (r renderer) categoryPage(request PageRequest) Page {
@@ -119,39 +121,26 @@ func (r renderer) categoryPage(request PageRequest) Page {
 	issues := r.store.IssuesForCategory(category.Code, r.now)
 	page, pages, visible := paginate(issues, request.Page, 6)
 	var b strings.Builder
-	r.header(&b, category.Label)
-	b.WriteString(r.section(fmt.Sprintf("%s %d", category.Title, len(issues))))
-	b.WriteByte('\n')
-	for _, row := range r.categorySummary(category, issues) {
-		r.summary(&b, row.label, row.value)
+	r.header(&b, esc1(category.Label))
+	r.heading(&b, fmt.Sprintf("%s (%d)", category.Title, len(issues)))
+	b.WriteString("<table>")
+	for _, sr := range r.categorySummary(category, issues) {
+		b.WriteString(row(esc1(sr.label), esc1(sr.value)))
 	}
 	if pages > 1 {
-		r.summary(&b, "page", fmt.Sprintf("%d/%d", page, pages))
+		b.WriteString(row("page", fmt.Sprintf("%d/%d", page, pages)))
 	}
-	b.WriteByte('\n')
+	b.WriteString("</table>")
 	if len(visible) == 0 {
-		b.WriteString(r.fit(category.EmptyText))
+		b.WriteString("<blockquote>" + esc1(category.EmptyText) + "</blockquote>")
 	} else {
-		for i, issue := range visible {
-			if i > 0 {
-				b.WriteByte('\n')
-			}
-			r.categoryIssuePreview(&b, issue)
+		var entries []string
+		for _, issue := range visible {
+			entries = append(entries, r.issueLine(issue)+"<br>"+esc1(issue.Title))
 		}
+		b.WriteString("<blockquote>" + strings.Join(entries, "<br>") + "</blockquote>")
 	}
-	return Page{
-		Text:    r.enforce(strings.TrimRight(b.String(), "\n")),
-		Buttons: r.categoryButtons(category, page, pages, visible),
-	}
-}
-
-func (r renderer) categoryIssuePreview(b *strings.Builder, issue tracker.Issue) {
-	b.WriteString(r.fit(r.issueHeader(issue)))
-	b.WriteByte('\n')
-	b.WriteString(r.fit(r.projectName(issue.Project)))
-	b.WriteByte('\n')
-	b.WriteString(r.fit(r.truncate(issue.Title, r.width)))
-	b.WriteByte('\n')
+	return newPage(b.String(), r.categoryButtons(category, page, pages, visible))
 }
 
 func (r renderer) issuePage(request PageRequest) Page {
@@ -160,141 +149,100 @@ func (r renderer) issuePage(request PageRequest) Page {
 		return r.messagePage("not found", "issue not found", "← Main", "m")
 	}
 	var b strings.Builder
-	r.header(&b, issue.ID)
-	b.WriteString(r.section("ISSUE"))
-	b.WriteByte('\n')
-	r.issueTitle(&b, issue)
-	b.WriteByte('\n')
-	for _, line := range r.wrap(defaultText(issue.Description, issue.Title), 10) {
-		b.WriteString(r.fit(line))
-		b.WriteByte('\n')
-	}
-	b.WriteByte('\n')
-	r.meta(&b, "status", r.statusLabel(issue.Status))
-	r.meta(&b, "priority", priorityShort(issue.Priority))
-	r.meta(&b, "project", defaultDash(issue.Project))
-	r.meta(&b, "labels", strings.Join(r.compactLabels(issue.Labels), "  "))
-	r.meta(&b, "assignee", defaultDash(issue.Assignee))
-	r.meta(&b, "created", formatDate(issue.CreatedAt))
-	r.meta(&b, "updated", formatDate(issue.UpdatedAt))
+	r.header(&b, esc1(issue.ID))
+	b.WriteString("<p><b>" + r.issueLine(issue) + "</b><br>" +
+		esc1(defaultDash(issue.Project)) + "<br><b>" + esc1(issue.Title) + "</b></p>")
+	b.WriteString("<details><summary>Description</summary>" +
+		esc1(defaultText(issue.Description, issue.Title)) + "</details>")
+
+	b.WriteString("<table>")
+	b.WriteString(row("status", esc1(r.statusLabel(issue.Status))))
+	b.WriteString(row("priority", priorityShort(issue.Priority)))
+	b.WriteString(row("project", esc1(defaultDash(issue.Project))))
+	b.WriteString(row("labels", esc1(strings.Join(r.compactLabels(issue.Labels), ", "))))
+	b.WriteString(row("assignee", esc1(defaultDash(issue.Assignee))))
+	b.WriteString(row("created", formatDate(issue.CreatedAt)))
+	b.WriteString(row("updated", formatDate(issue.UpdatedAt)))
 	if strings.TrimSpace(issue.GitBranchName) != "" {
-		b.WriteByte('\n')
-		b.WriteString(r.section("GIT"))
-		b.WriteByte('\n')
-		r.meta(&b, "branch", issue.GitBranchName)
+		b.WriteString(row("branch", esc1(issue.GitBranchName)))
 	}
-	b.WriteByte('\n')
-	b.WriteString(r.section("ACTIVITY"))
-	b.WriteByte('\n')
-	r.meta(&b, "last update", relativeIssueTime(issue.UpdatedAt, r.now))
-	r.meta(&b, "comments", "0")
-	b.WriteByte('\n')
-	b.WriteString(r.section("BLOCKS"))
-	b.WriteByte('\n')
-	r.meta(&b, "blocks", "—")
-	r.meta(&b, "blocked by", "—")
-	return Page{
-		Text:    r.enforce(strings.TrimRight(b.String(), "\n")),
-		Buttons: r.issueButtons(issue, request.Back, request.BackPage),
-	}
+	b.WriteString(row("activity", esc1(relativeIssueTime(issue.UpdatedAt, r.now))))
+	b.WriteString("</table>")
+	return newPage(b.String(), r.issueButtons(issue, request.Back, request.BackPage))
 }
 
 func (r renderer) messagePage(label string, message string, buttonText string, callback string) Page {
 	var b strings.Builder
-	r.header(&b, label)
-	b.WriteString(r.section("MESSAGE"))
-	b.WriteByte('\n')
-	b.WriteString(r.fit(message))
-	return Page{
-		Text: r.enforce(strings.TrimRight(b.String(), "\n")),
-		Buttons: [][]Button{{
-			{Text: buttonText, CallbackData: callback},
-		}},
-	}
+	r.header(&b, esc1(label))
+	b.WriteString("<blockquote>" + esc1(message) + "</blockquote>")
+	return newPage(b.String(), [][]Button{{
+		{Text: buttonText, CallbackData: callback},
+	}})
 }
 
-func (r renderer) progressBlock(b *strings.Builder, progress tracker.Progress) {
-	b.WriteString(r.fit(fmt.Sprintf("done %d/%d  %d%%", progress.Done, progress.Total, progress.Percent)))
-	b.WriteByte('\n')
+// --- rich-HTML building blocks ---
+
+func (r renderer) header(b *strings.Builder, label string) {
+	title := esc1(defaultDash(r.store.Settings.Title))
+	if strings.TrimSpace(label) != "" {
+		title += " — " + esc1(label)
+	}
+	b.WriteString("<h4>" + title + "</h4>")
+	b.WriteString("<p><i>" + esc(r.now.UTC().Format("2006-01-02 15:04 UTC")) + "</i></p>")
+}
+
+func (r renderer) heading(b *strings.Builder, title string) {
+	b.WriteString("<h5>" + esc1(title) + "</h5>")
+}
+
+func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
+	r.heading(b, fmt.Sprintf("Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
+	b.WriteString("<table>")
 	for _, status := range r.store.Settings.StatusOrder {
-		label := r.statusLabel(status)
-		count := progress.ByStatus[status]
-		b.WriteString(r.progressLine(label, count, progress.Total))
-		b.WriteByte('\n')
+		b.WriteString("<tr><td>" + esc1(r.statusLabel(status)) + "</td><td><code>" +
+			bar(progress.ByStatus[status], progress.Total) + "</code></td><td>" +
+			fmt.Sprintf("%d", progress.ByStatus[status]) + "</td></tr>")
 	}
-	b.WriteByte('\n')
+	b.WriteString("</table>")
 }
 
-func (r renderer) progressLine(label string, count int, total int) string {
-	barWidth := r.width - 12
-	if barWidth < 8 {
-		barWidth = 8
-	}
-	filled := 0
-	if total > 0 {
-		filled = count * barWidth / total
-		if count > 0 && filled == 0 {
-			filled = 1
-		}
-	}
-	if filled > barWidth {
-		filled = barWidth
-	}
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-	return r.fit(fmt.Sprintf("%-7s %s %2d", r.truncate(label, 7), bar, count))
-}
-
-func (r renderer) issueBlock(b *strings.Builder, title string, issues []tracker.Issue, limit int) {
-	b.WriteString(r.section(title))
-	b.WriteByte('\n')
+func (r renderer) issueSection(b *strings.Builder, title string, issues []tracker.Issue, limit int) {
+	r.heading(b, title)
 	if len(issues) == 0 {
-		b.WriteString(r.fit("  none"))
-		b.WriteString("\n\n")
+		b.WriteString("<blockquote>none</blockquote>")
 		return
 	}
+	var lines []string
 	for i, issue := range issues {
 		if i >= limit {
-			b.WriteString(r.fit(fmt.Sprintf("  … +%d more", len(issues)-limit)))
-			b.WriteString("\n\n")
-			return
+			lines = append(lines, fmt.Sprintf("… +%d more", len(issues)-limit))
+			break
 		}
-		r.issueCard(b, issue)
+		line := r.issueLine(issue)
+		if tags := r.compactLabels(issue.Labels); len(tags) > 0 {
+			line += "  " + esc1(strings.Join(tags, ", "))
+		}
+		lines = append(lines, line)
 	}
+	b.WriteString("<blockquote>" + strings.Join(lines, "<br>") + "</blockquote>")
 }
 
-func (r renderer) issueCard(b *strings.Builder, issue tracker.Issue) {
-	b.WriteString(r.fit("  " + r.issueHeader(issue)))
-	b.WriteByte('\n')
-	b.WriteString(r.fit("    " + r.truncate(r.projectName(issue.Project), r.width-4)))
-	b.WriteByte('\n')
-	b.WriteString(r.fit("    " + r.truncate(issue.Title, r.width-4)))
-	b.WriteByte('\n')
-	if tags := r.compactLabels(issue.Labels); len(tags) > 0 {
-		b.WriteString(r.fit("    " + r.truncate(strings.Join(tags, "  "), r.width-4)))
-		b.WriteByte('\n')
-	}
-	b.WriteByte('\n')
-}
-
-func (r renderer) attentionBlock(b *strings.Builder) {
+func (r renderer) attentionSection(b *strings.Builder) {
 	groups := r.store.AttentionGroups(r.now)
-	b.WriteString(r.section("ATTENTION"))
-	b.WriteByte('\n')
+	r.heading(b, "Attention")
 	if len(groups) == 0 {
-		b.WriteString(r.fit("  none"))
-		b.WriteString("\n\n")
+		b.WriteString("<blockquote>none</blockquote>\n\n")
 		return
 	}
+	b.WriteString("<ul>")
 	for _, group := range groups {
-		b.WriteString(r.fit(fmt.Sprintf("  ⚠ %d %s", len(group.Issues), group.Title)))
-		b.WriteByte('\n')
+		b.WriteString("<li>⚠ " + fmt.Sprintf("%d ", len(group.Issues)) + esc1(group.Title) + "</li>")
 	}
-	b.WriteByte('\n')
+	b.WriteString("</ul>")
 }
 
-func (r renderer) hiddenBlock(b *strings.Builder, progress tracker.Progress) {
-	_ = progress
-	wrote := false
+func (r renderer) hiddenSection(b *strings.Builder) {
+	var items []string
 	for _, code := range r.store.Settings.HiddenCategoryCodes {
 		category, ok := r.category(code)
 		if !ok {
@@ -304,64 +252,25 @@ func (r renderer) hiddenBlock(b *strings.Builder, progress tracker.Progress) {
 		if count == 0 {
 			continue
 		}
-		if !wrote {
-			b.WriteString(r.section("HIDDEN"))
-			b.WriteByte('\n')
-			wrote = true
-		}
-		b.WriteString(r.fit(fmt.Sprintf("  %s %d  →  /menu", category.Label, count)))
-		b.WriteByte('\n')
+		items = append(items, fmt.Sprintf("%s %d → /menu", esc1(category.Label), count))
 	}
-}
-
-func (r renderer) header(b *strings.Builder, label string) {
-	title := r.truncate(defaultDash(r.store.Settings.Title), r.width)
-	available := r.width - displayWidth(title)
-	if available < 0 {
-		available = 0
+	if len(items) == 0 {
+		return
 	}
-	label = r.truncate(label, available)
-	b.WriteString(padRight(title, r.width-displayWidth(label)))
-	b.WriteString(label)
-	b.WriteByte('\n')
-	b.WriteString(r.fit(r.now.UTC().Format("2006-01-02 15:04 UTC")))
-	b.WriteString("\n\n")
+	r.heading(b, "Hidden")
+	b.WriteString("<blockquote>" + strings.Join(items, "<br>") + "</blockquote>")
 }
 
-func (r renderer) section(title string) string {
-	return padFill("── "+r.truncate(title, r.width-5)+" ", r.width, "─")
-}
-
-func (r renderer) summary(b *strings.Builder, label string, value string) {
-	r.meta(b, label, value)
-}
-
-func (r renderer) meta(b *strings.Builder, key string, value string) {
-	key = r.truncate(key, 10)
-	value = r.truncate(defaultDash(value), r.width-11)
-	b.WriteString(padRight(key, 10))
-	b.WriteByte(' ')
-	b.WriteString(value)
-	b.WriteByte('\n')
-}
-
-func (r renderer) issueTitle(b *strings.Builder, issue tracker.Issue) {
-	b.WriteString(r.fit(r.issueHeader(issue)))
-	b.WriteByte('\n')
-	b.WriteString(r.fit(defaultDash(issue.Project)))
-	b.WriteByte('\n')
-	for _, line := range r.wrap(issue.Title, 3) {
-		b.WriteString(r.fit(line))
-		b.WriteByte('\n')
+// issueLine renders "glyph P1 ID · project" with an optional stale-review alert.
+func (r renderer) issueLine(issue tracker.Issue) string {
+	line := fmt.Sprintf("%s %s <code>%s</code>", esc1(r.statusGlyph(issue.Status)), priorityShort(issue.Priority), esc1(issue.ID))
+	if project := r.projectName(issue.Project); project != "" {
+		line += " · " + esc1(project)
 	}
-}
-
-func (r renderer) issueHeader(issue tracker.Issue) string {
-	header := fmt.Sprintf("%s %s %s", r.statusGlyph(issue.Status), priorityShort(issue.Priority), issue.ID)
 	if alert := r.issueAlert(issue); alert != "" {
-		header = padRight(header, r.width-displayWidth(alert)) + alert
+		line += "  " + esc1(alert)
 	}
-	return header
+	return line
 }
 
 func (r renderer) issueAlert(issue tracker.Issue) string {
@@ -377,6 +286,8 @@ func (r renderer) issueAlert(issue tracker.Issue) string {
 	}
 	return ""
 }
+
+// --- buttons (navigation unchanged) ---
 
 func (r renderer) categoryMenuButtons() []Button {
 	buttons := make([]Button, 0, len(r.store.Settings.Categories))
@@ -420,8 +331,10 @@ func (r renderer) issueButtons(issue tracker.Issue, back string, backPage int) [
 }
 
 func (r renderer) issueTile(issue tracker.Issue) string {
-	return r.truncate(fmt.Sprintf("%s %s · %s", r.statusGlyph(issue.Status), issue.ID, issue.Title), r.width)
+	return clip(fmt.Sprintf("%s %s · %s", r.statusGlyph(issue.Status), issue.ID, issue.Title), 40)
 }
+
+// --- data helpers (unchanged behavior) ---
 
 type summaryRow struct {
 	label string
@@ -478,7 +391,7 @@ func (r renderer) projectName(project string) string {
 			return candidate.ShortName
 		}
 	}
-	return r.truncate(project, 18)
+	return project
 }
 
 func (r renderer) compactLabels(labels []string) []string {
@@ -532,56 +445,61 @@ func (r renderer) statusGlyph(status string) string {
 	return "?"
 }
 
-func (r renderer) wrap(text string, maxRows int) []string {
-	words := strings.Fields(sanitize(text))
-	if len(words) == 0 {
-		return []string{"—"}
-	}
-	var lines []string
-	current := ""
-	for _, word := range words {
-		if current == "" {
-			current = r.truncate(word, r.width)
-			continue
-		}
-		candidate := current + " " + word
-		if displayWidth(candidate) <= r.width {
-			current = candidate
-			continue
-		}
-		lines = append(lines, current)
-		current = r.truncate(word, r.width)
-		if len(lines) == maxRows {
-			lines[maxRows-1] = r.truncate(lines[maxRows-1]+" …", r.width)
-			return lines
-		}
-	}
-	if current != "" {
-		lines = append(lines, current)
-	}
-	if len(lines) > maxRows {
-		lines = lines[:maxRows]
-		lines[maxRows-1] = r.truncate(lines[maxRows-1]+" …", r.width)
-	}
-	return lines
+// --- small pure helpers ---
+
+func esc(s string) string  { return html.EscapeString(strings.TrimSpace(s)) }
+func esc1(s string) string { return esc(strings.Join(strings.Fields(s), " ")) }
+
+func row(key, value string) string {
+	return "<tr><td>" + key + "</td><td>" + value + "</td></tr>"
 }
 
-func (r renderer) fit(value string) string {
-	return r.truncate(value, r.width)
+func bar(count int, total int) string {
+	filled := 0
+	if total > 0 {
+		filled = count * barWidth / total
+		if count > 0 && filled == 0 {
+			filled = 1
+		}
+	}
+	if filled > barWidth {
+		filled = barWidth
+	}
+	return strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 }
 
-func (r renderer) truncate(value string, maxWidth int) string {
-	return truncateWidth(value, maxWidth)
+func clip(value string, maxRunes int) string {
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return strings.TrimSpace(string(runes[:maxRunes-1])) + "…"
 }
 
-func (r renderer) enforce(message string) string {
-	lines := strings.Split(message, "\n")
+var tagRE = regexp.MustCompile(`<[^>]*>`)
+
+// htmlToText renders the rich-HTML body as readable plain text for CLI/tests.
+func htmlToText(s string) string {
+	s = strings.NewReplacer(
+		"<br>", "\n", "<br/>", "\n", "<br />", "\n",
+		"</tr>", "\n", "</li>", "\n", "</p>", "\n",
+		"</blockquote>", "\n", "</table>", "\n",
+		"</h1>", "\n", "</h2>", "\n", "</h3>", "\n",
+		"</h4>", "\n", "</h5>", "\n", "</h6>", "\n",
+		"</summary>", "\n", "</details>", "\n",
+		"</td>", "\t", "</th>", "\t",
+	).Replace(s)
+	s = tagRE.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	for strings.Contains(s, "\n\n\n") {
+		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
+	}
+	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		if displayWidth(line) > r.width {
-			lines[i] = r.truncate(line, r.width)
-		}
+		lines[i] = strings.TrimRight(line, " \t")
 	}
-	return strings.Join(lines, "\n")
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func paginate(issues []tracker.Issue, requestedPage int, pageSize int) (int, int, []tracker.Issue) {
@@ -677,110 +595,11 @@ func defaultText(values ...string) string {
 	return "—"
 }
 
-func sanitize(value string) string {
-	var b strings.Builder
-	lastWasSpace := false
-	for _, r := range value {
-		if r == '\n' || r == '\r' || r == '\t' {
-			if !lastWasSpace {
-				b.WriteByte(' ')
-				lastWasSpace = true
-			}
-			continue
-		}
-		if r < 0x20 {
-			continue
-		}
-		if runeDisplayWidth(r) != 1 {
-			r = '?'
-		}
-		b.WriteRune(r)
-		lastWasSpace = r == ' '
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func truncateWidth(value string, maxWidth int) string {
-	value = strings.TrimSpace(sanitize(value))
-	if maxWidth <= 0 || displayWidth(value) <= maxWidth {
-		return value
-	}
-	if maxWidth == 1 {
-		return "…"
-	}
-	var b strings.Builder
-	used := 0
-	for _, r := range value {
-		width := runeDisplayWidth(r)
-		if used+width+1 > maxWidth {
-			break
-		}
-		b.WriteRune(r)
-		used += width
-	}
-	return b.String() + "…"
-}
-
-func padRight(value string, targetWidth int) string {
-	width := displayWidth(value)
-	if width >= targetWidth {
-		return value
-	}
-	return value + strings.Repeat(" ", targetWidth-width)
-}
-
-func padFill(value string, targetWidth int, fill string) string {
-	width := displayWidth(value)
-	if width >= targetWidth {
-		return truncateWidth(value, targetWidth)
-	}
-	return value + strings.Repeat(fill, targetWidth-width)
-}
-
-func displayWidth(value string) int {
-	width := 0
-	for _, r := range value {
-		width += runeDisplayWidth(r)
-	}
-	return width
-}
-
-func runeDisplayWidth(r rune) int {
-	switch {
-	case r == 0:
-		return 0
-	case r < 0x20 || (r >= 0x7f && r < 0xa0):
-		return 0
-	case r >= 0x0300 && r <= 0x036f:
-		return 0
-	case r >= 0x1100 && r <= 0x115f:
-		return 2
-	case r >= 0x2e80 && r <= 0xa4cf:
-		return 2
-	case r >= 0xac00 && r <= 0xd7a3:
-		return 2
-	case r >= 0xf900 && r <= 0xfaff:
-		return 2
-	case r >= 0xfe10 && r <= 0xfe19:
-		return 2
-	case r >= 0xfe30 && r <= 0xfe6f:
-		return 2
-	case r >= 0xff00 && r <= 0xff60:
-		return 2
-	case r >= 0xffe0 && r <= 0xffe6:
-		return 2
-	case r >= 0x1f000 && r <= 0x1faff:
-		return 2
-	default:
-		return 1
-	}
-}
-
-func ValidatePage(page Page, width int) error {
-	for _, line := range strings.Split(page.Text, "\n") {
-		if displayWidth(line) > width {
-			return fmt.Errorf("line exceeds width %d: %q", width, line)
-		}
+// ValidatePage checks Telegram constraints: rich-message character limit,
+// buttons per row, and callback_data byte length.
+func ValidatePage(page Page) error {
+	if len([]rune(page.HTML)) > maxRichChars {
+		return fmt.Errorf("rich message exceeds %d characters", maxRichChars)
 	}
 	for _, row := range page.Buttons {
 		if len(row) > 3 {

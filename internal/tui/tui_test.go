@@ -8,7 +8,7 @@ import (
 	"github.com/loutab4k/OpenLinear/internal/tracker"
 )
 
-func TestRenderAllPagesStayWithinWidth(t *testing.T) {
+func TestRenderAllPagesAreValid(t *testing.T) {
 	store := tracker.Store{
 		Settings: tracker.DefaultSettings(),
 		Issues: []tracker.Issue{
@@ -39,8 +39,11 @@ func TestRenderAllPagesStayWithinWidth(t *testing.T) {
 
 	now := time.Date(2026, 1, 4, 10, 0, 0, 0, time.UTC)
 	for _, page := range RenderAll(store, now) {
-		if err := ValidatePage(page, store.Settings.Width); err != nil {
-			t.Fatalf("page width error: %v\n%s", err, page.Text)
+		if err := ValidatePage(page); err != nil {
+			t.Fatalf("page validation error: %v\n%s", err, page.Text)
+		}
+		if strings.TrimSpace(page.HTML) == "" {
+			t.Fatal("page HTML is empty")
 		}
 	}
 }
@@ -77,10 +80,32 @@ func TestIssuePageWrapsDescription(t *testing.T) {
 		},
 	}
 	page := Render(store, PageRequest{Kind: PageIssue, IssueID: "DEMO-1"}, time.Date(2026, 1, 4, 10, 0, 0, 0, time.UTC))
-	if err := ValidatePage(page, store.Settings.Width); err != nil {
-		t.Fatalf("issue page width error: %v\n%s", err, page.Text)
+	if err := ValidatePage(page); err != nil {
+		t.Fatalf("issue page validation error: %v\n%s", err, page.Text)
 	}
 	if !strings.Contains(page.Text, "description") {
-		t.Fatalf("issue text missing wrapped description:\n%s", page.Text)
+		t.Fatalf("issue text missing description:\n%s", page.Text)
+	}
+	if !strings.Contains(page.HTML, "<details><summary>") {
+		t.Fatalf("issue page should use a collapsible details block:\n%s", page.HTML)
+	}
+}
+
+func TestMainPageRichStructure(t *testing.T) {
+	store := tracker.Store{
+		Settings: tracker.DefaultSettings(),
+		Issues: []tracker.Issue{
+			{ID: "DEMO-1", Title: "First", Status: tracker.StatusInProgress, Priority: tracker.Priority{Value: 1}, Labels: []string{"telegram"}},
+			{ID: "DEMO-2", Title: "Second", Status: tracker.StatusInProgress, Priority: tracker.Priority{Value: 2}},
+		},
+	}
+	page := Render(store, PageRequest{Kind: PageMain}, time.Date(2026, 1, 4, 10, 0, 0, 0, time.UTC))
+	for _, want := range []string{"<h4>", "<h5>", "<table>", "<blockquote>", "<br>"} {
+		if !strings.Contains(page.HTML, want) {
+			t.Fatalf("main HTML missing %q:\n%s", want, page.HTML)
+		}
+	}
+	if strings.Contains(page.HTML, "expandable") {
+		t.Fatal("rich HTML must not use classic <blockquote expandable>")
 	}
 }

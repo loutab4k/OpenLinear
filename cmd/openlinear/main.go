@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/loutab4k/OpenLinear/internal/runtime"
+	"github.com/loutab4k/OpenLinear/internal/tracker"
 	"github.com/loutab4k/OpenLinear/internal/tui"
 )
 
@@ -26,7 +29,16 @@ func run(args []string) error {
 	}
 
 	command := args[0]
-	cfg, rest, err := runtime.ConfigFromEnv(args[1:])
+	switch command {
+	case "issue":
+		return handleIssue(args[1:])
+	case "render":
+		return handleRender(args[1:])
+	case "help", "-h", "--help":
+		return usage()
+	}
+
+	cfg, _, err := runtime.ConfigFromEnv(args[1:])
 	if err != nil {
 		return err
 	}
@@ -40,26 +52,122 @@ func run(args []string) error {
 		return initDataDir(cfg.DataDir)
 	case "validate":
 		return app.Validate(ctx)
-	case "render":
-		request := tui.PageRequest{Kind: tui.PageMain}
-		if len(rest) > 0 {
-			request = runtime.ParseCallback(rest[0])
-		}
-		text, err := app.Render(ctx, request)
-		if err != nil {
-			return err
-		}
-		fmt.Println(text)
-		return nil
 	case "sync":
 		return app.Sync(ctx)
 	case "run":
 		return app.Run(ctx)
-	case "help", "-h", "--help":
-		return usage()
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", command, usageText())
 	}
+}
+
+func dataDirFlag(fs *flag.FlagSet) *string {
+	def := os.Getenv("OPENLINEAR_DATA_DIR")
+	if strings.TrimSpace(def) == "" {
+		def = "openlinear"
+	}
+	return fs.String("data-dir", def, "directory with OpenLinear JSON files")
+}
+
+func handleRender(args []string) error {
+	fs := flag.NewFlagSet("render", flag.ContinueOnError)
+	dir := dataDirFlag(fs)
+	asJSON := fs.Bool("json", false, "output board state as JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	app := runtime.New(runtime.Config{DataDir: *dir})
+	if *asJSON {
+		out, err := app.RenderJSON()
+		if err != nil {
+			return err
+		}
+		fmt.Println(out)
+		return nil
+	}
+	request := tui.PageRequest{Kind: tui.PageMain}
+	if fs.NArg() > 0 {
+		request = runtime.ParseCallback(fs.Arg(0))
+	}
+	text, err := app.Render(context.Background(), request)
+	if err != nil {
+		return err
+	}
+	fmt.Println(text)
+	return nil
+}
+
+func handleIssue(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: openlinear issue <add|move|done|assign|archive> ...")
+	}
+	sub := args[0]
+	fs := flag.NewFlagSet("issue "+sub, flag.ContinueOnError)
+	dir := dataDirFlag(fs)
+	var in tracker.Issue
+	var labels string
+	if sub == "add" {
+		fs.StringVar(&in.Title, "title", "", "issue title (required)")
+		fs.StringVar(&in.ID, "id", "", "issue id (auto-generated if empty)")
+		fs.StringVar(&in.Status, "status", "", "status (default Todo)")
+		fs.IntVar(&in.Priority.Value, "priority", 0, "priority value")
+		fs.StringVar(&in.Project, "project", "", "project name")
+		fs.StringVar(&in.Assignee, "assignee", "", "assignee")
+		fs.StringVar(&labels, "labels", "", "comma-separated labels")
+	}
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	rest := fs.Args()
+	app := runtime.New(runtime.Config{DataDir: *dir})
+
+	switch sub {
+	case "add":
+		if strings.TrimSpace(in.Title) == "" {
+			return errors.New("issue add requires --title")
+		}
+		if strings.TrimSpace(labels) != "" {
+			in.Labels = splitCSV(labels)
+		}
+		created, err := app.IssueAdd(in)
+		if err != nil {
+			return err
+		}
+		fmt.Println(created.ID)
+		return nil
+	case "move":
+		if len(rest) < 2 {
+			return errors.New("usage: openlinear issue move <id> <status>")
+		}
+		return app.IssueMove(rest[0], strings.Join(rest[1:], " "))
+	case "done":
+		if len(rest) < 1 {
+			return errors.New("usage: openlinear issue done <id>")
+		}
+		return app.IssueMove(rest[0], tracker.StatusDone)
+	case "assign":
+		if len(rest) < 2 {
+			return errors.New("usage: openlinear issue assign <id> <name>")
+		}
+		return app.IssueAssign(rest[0], strings.Join(rest[1:], " "))
+	case "archive":
+		if len(rest) < 1 {
+			return errors.New("usage: openlinear issue archive <id>")
+		}
+		return app.IssueArchive(rest[0])
+	default:
+		return fmt.Errorf("unknown issue subcommand %q", sub)
+	}
+}
+
+func splitCSV(value string) []string {
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func usage() error {
@@ -73,9 +181,15 @@ func usageText() string {
 Usage:
   openlinear init [--data-dir openlinear]
   openlinear validate [--data-dir openlinear]
-  openlinear render [--data-dir openlinear] [page]
+  openlinear render [--data-dir openlinear] [page] [--json]
   openlinear sync [--data-dir openlinear]
   openlinear run [--data-dir openlinear]
+
+  openlinear issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
+  openlinear issue move <id> <status>
+  openlinear issue done <id>
+  openlinear issue assign <id> <name>
+  openlinear issue archive <id>
 
 Pages:
   m              main

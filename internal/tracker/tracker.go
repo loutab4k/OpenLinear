@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -32,6 +33,7 @@ type Settings struct {
 	Width               int               `json:"width"`
 	ReviewAlertHours    int               `json:"review_alert_hours"`
 	ExternalLinkLabel   string            `json:"external_link_label"`
+	IDPrefix            string            `json:"id_prefix"`
 	MainPreviewCategory string            `json:"main_preview_category"`
 	HiddenCategoryCodes []string          `json:"hidden_category_codes"`
 	StatusOrder         []string          `json:"status_order"`
@@ -133,10 +135,10 @@ func (p *Priority) UnmarshalJSON(data []byte) error {
 }
 
 type Progress struct {
-	Total    int
-	Done     int
-	Percent  int
-	ByStatus map[string]int
+	Total    int            `json:"total"`
+	Done     int            `json:"done"`
+	Percent  int            `json:"percent"`
+	ByStatus map[string]int `json:"by_status"`
 }
 
 func LoadDir(dir string) (Store, error) {
@@ -389,6 +391,7 @@ func DefaultSettings() Settings {
 		Width:               30,
 		ReviewAlertHours:    48,
 		ExternalLinkLabel:   "Open ↗",
+		IDPrefix:            "OL",
 		MainPreviewCategory: "n",
 		HiddenCategoryCodes: []string{"b"},
 		StatusOrder:         append([]string(nil), defaultStatusOrder...),
@@ -438,6 +441,9 @@ func (settings Settings) WithDefaults() Settings {
 	if strings.TrimSpace(settings.ExternalLinkLabel) == "" {
 		settings.ExternalLinkLabel = defaults.ExternalLinkLabel
 	}
+	if strings.TrimSpace(settings.IDPrefix) == "" {
+		settings.IDPrefix = defaults.IDPrefix
+	}
 	if strings.TrimSpace(settings.MainPreviewCategory) == "" {
 		settings.MainPreviewCategory = defaults.MainPreviewCategory
 	}
@@ -466,6 +472,119 @@ func (settings Settings) WithDefaults() Settings {
 		settings.StatusGlyphs = defaults.StatusGlyphs
 	}
 	return settings
+}
+
+// issueIndex finds an issue by id (case-insensitive) across all issues,
+// including archived ones. Returns -1 if absent.
+func (s *Store) issueIndex(id string) int {
+	id = strings.ToUpper(strings.TrimSpace(id))
+	for i := range s.Issues {
+		if strings.ToUpper(strings.TrimSpace(s.Issues[i].ID)) == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Store) nextID() string {
+	prefix := strings.TrimSpace(s.Settings.IDPrefix)
+	if prefix == "" {
+		prefix = "OL"
+	}
+	max := 0
+	for _, issue := range s.Issues {
+		n := strings.LastIndex(issue.ID, "-")
+		if n < 0 {
+			continue
+		}
+		if v, err := strconv.Atoi(issue.ID[n+1:]); err == nil && v > max {
+			max = v
+		}
+	}
+	return fmt.Sprintf("%s-%d", prefix, max+1)
+}
+
+func stamp(now time.Time) string {
+	return now.UTC().Format(time.RFC3339)
+}
+
+func (s *Store) AddIssue(in Issue, now time.Time) (Issue, error) {
+	if strings.TrimSpace(in.ID) == "" {
+		in.ID = s.nextID()
+	}
+	if s.issueIndex(in.ID) >= 0 {
+		return Issue{}, fmt.Errorf("issue %s already exists", in.ID)
+	}
+	if strings.TrimSpace(in.Status) == "" {
+		in.Status = StatusTodo
+	}
+	if strings.TrimSpace(in.CreatedAt) == "" {
+		in.CreatedAt = stamp(now)
+	}
+	in.UpdatedAt = stamp(now)
+	s.Issues = append(s.Issues, in)
+	return in, nil
+}
+
+func (s *Store) SetStatus(id string, status string, now time.Time) error {
+	i := s.issueIndex(id)
+	if i < 0 {
+		return fmt.Errorf("issue %s not found", id)
+	}
+	s.Issues[i].Status = status
+	if status == StatusInProgress && strings.TrimSpace(s.Issues[i].StartedAt) == "" {
+		s.Issues[i].StartedAt = stamp(now)
+	}
+	if status == StatusDone && strings.TrimSpace(s.Issues[i].CompletedAt) == "" {
+		s.Issues[i].CompletedAt = stamp(now)
+	}
+	s.Issues[i].UpdatedAt = stamp(now)
+	return nil
+}
+
+func (s *Store) Assign(id string, assignee string, now time.Time) error {
+	i := s.issueIndex(id)
+	if i < 0 {
+		return fmt.Errorf("issue %s not found", id)
+	}
+	s.Issues[i].Assignee = strings.TrimSpace(assignee)
+	s.Issues[i].UpdatedAt = stamp(now)
+	return nil
+}
+
+func (s *Store) Archive(id string, now time.Time) error {
+	i := s.issueIndex(id)
+	if i < 0 {
+		return fmt.Errorf("issue %s not found", id)
+	}
+	s.Issues[i].Archived = true
+	s.Issues[i].ArchivedAt = stamp(now)
+	s.Issues[i].UpdatedAt = stamp(now)
+	return nil
+}
+
+// WriteIssues persists issues.json atomically (temp file in the same dir + rename).
+func WriteIssues(dir string, issues []Issue) error {
+	data, err := json.MarshalIndent(issues, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	tmp, err := os.CreateTemp(dir, "issues-*.json.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return os.Rename(tmpName, filepath.Join(dir, "issues.json"))
 }
 
 func HasLabel(issue Issue, label string) bool {
