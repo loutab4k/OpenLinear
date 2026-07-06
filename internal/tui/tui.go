@@ -264,7 +264,7 @@ func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
 	r.heading(b, fmt.Sprintf("📊 Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
 	b.WriteString("<table>")
 	for _, status := range r.store.Settings.StatusOrder {
-		b.WriteString("<tr><td>" + esc1(r.statusLabel(status)) + "</td><td><code>" +
+		b.WriteString("<tr><td>" + esc1(r.statusGlyph(status)+" "+r.statusLabel(status)) + "</td><td><code>" +
 			bar(progress.ByStatus[status], progress.Total) + "</code></td><td>" +
 			fmt.Sprintf("%d", progress.ByStatus[status]) + "</td></tr>")
 	}
@@ -277,19 +277,19 @@ func (r renderer) issueSection(b *strings.Builder, title string, issues []tracke
 		b.WriteString("<blockquote>— empty</blockquote>")
 		return
 	}
-	var lines []string
+	var entries []string
 	for i, issue := range issues {
 		if i >= limit {
-			lines = append(lines, fmt.Sprintf("… +%d more", len(issues)-limit))
+			entries = append(entries, fmt.Sprintf("… +%d more", len(issues)-limit))
 			break
 		}
 		line := r.issueLine(issue)
 		if tags := r.compactLabels(issue.Labels); len(tags) > 0 {
 			line += "  " + esc1(strings.Join(tags, ", "))
 		}
-		lines = append(lines, line)
+		entries = append(entries, line+"<br>"+esc1(issue.Title))
 	}
-	b.WriteString("<blockquote>" + strings.Join(lines, "<br>") + "</blockquote>")
+	b.WriteString("<blockquote>" + strings.Join(entries, "<br>") + "</blockquote>")
 }
 
 func (r renderer) attentionSection(b *strings.Builder) {
