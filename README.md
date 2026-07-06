@@ -125,6 +125,7 @@ doppler run -- docker compose up openlinear
 | `OPENLINEAR_STATUS_MESSAGE_ID` | no | | Existing message ID to edit |
 | `OPENLINEAR_DATA_DIR` | no | `openlinear` | Data directory |
 | `OPENLINEAR_STATE_PATH` | no | `.openlinear/state.json` | Local state file |
+| `OPENLINEAR_BOARDS_FILE` | no | | `boards.json` for multi-board mode (or `--boards`) |
 | `OPENLINEAR_API_BASE_URL` | no | `https://api.telegram.org` | Telegram API base URL |
 | `OPENLINEAR_POLL_TIMEOUT_SECONDS` | no | `30` | Long polling timeout |
 | `OPENLINEAR_POLL_LIMIT` | no | `50` | Updates per polling request |
@@ -139,6 +140,21 @@ OpenLinear reads three JSON files:
 - `issues.json` contains the actual cards.
 
 See [`examples/basic`](examples/basic) and [`docs/schema.md`](docs/schema.md).
+
+### Multiple boards
+
+One bot can switch between several boards (one data directory per project/repo).
+Point it at a workspace file:
+
+```bash
+openlinear run --boards examples/boards.json   # or OPENLINEAR_BOARDS_FILE=...
+```
+
+`boards.json` is a list of `{ "id", "name", "data_dir" }`. The `🗂 Boards`
+button (and `/boards`) opens a picker; the selected board is stored in state and
+every render uses that board's data. Without `--boards`, behavior is unchanged.
+For a single aggregate board, tag issues with `project` and use the projects
+picker instead.
 
 ## Commands
 
@@ -361,6 +377,20 @@ OpenLinear читает три JSON-файла:
 - `issues.json` содержит карточки задач.
 
 Смотри [`examples/basic`](examples/basic) и [`docs/ru/schema.md`](docs/ru/schema.md).
+
+### Несколько досок
+
+Один бот умеет переключаться между несколькими досками (по data-каталогу на
+проект/репо). Укажи workspace-файл:
+
+```bash
+openlinear run --boards examples/boards.json   # или OPENLINEAR_BOARDS_FILE=...
+```
+
+`boards.json` — список `{ "id", "name", "data_dir" }`. Кнопка `🗂 Boards` (и
+`/boards`) открывает пикер; выбранная доска хранится в state, и весь рендер идёт
+по ней. Без `--boards` поведение прежнее. Для одной агрегирующей доски помечай
+задачи полем `project` и используй пикер проектов.
 
 ## Команды
 

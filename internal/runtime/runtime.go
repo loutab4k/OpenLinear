@@ -23,6 +23,7 @@ const defaultStateFile = ".openlinear/state.json"
 type Config struct {
 	DataDir        string
 	StatePath      string
+	BoardsFile     string
 	BotToken       string
 	ChatID         int64
 	MessageID      int
@@ -37,13 +38,15 @@ type App struct {
 }
 
 type State struct {
-	MessageID int `json:"message_id"`
+	MessageID int    `json:"message_id"`
+	BoardID   string `json:"board_id,omitempty"`
 }
 
 func ConfigFromEnv(args []string) (Config, []string, error) {
 	cfg := Config{
 		DataDir:        env("OPENLINEAR_DATA_DIR", "openlinear"),
 		StatePath:      env("OPENLINEAR_STATE_PATH", defaultStateFile),
+		BoardsFile:     env("OPENLINEAR_BOARDS_FILE", ""),
 		BotToken:       os.Getenv("OPENLINEAR_BOT_TOKEN"),
 		APIBaseURL:     env("OPENLINEAR_API_BASE_URL", "https://api.telegram.org"),
 		PollTimeout:    durationEnv("OPENLINEAR_POLL_TIMEOUT_SECONDS", 30*time.Second),
@@ -81,6 +84,7 @@ func ConfigFromEnv(args []string) (Config, []string, error) {
 	fs := flag.NewFlagSet("openlinear", flag.ContinueOnError)
 	fs.StringVar(&cfg.DataDir, "data-dir", cfg.DataDir, "directory with OpenLinear JSON files")
 	fs.StringVar(&cfg.StatePath, "state", cfg.StatePath, "state file path")
+	fs.StringVar(&cfg.BoardsFile, "boards", cfg.BoardsFile, "path to boards.json for multi-board mode")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, nil, err
 	}
@@ -178,12 +182,15 @@ func (a *App) Sync(ctx context.Context) error {
 	if err := a.requireTelegramConfig(); err != nil {
 		return err
 	}
-	store, err := tracker.LoadDir(a.cfg.DataDir)
+	dir, err := a.activeDataDir()
 	if err != nil {
 		return err
 	}
-	page := tui.Render(store, tui.PageRequest{Kind: tui.PageMain}, time.Now())
-	return a.editOrSend(ctx, page)
+	store, err := tracker.LoadDir(dir)
+	if err != nil {
+		return err
+	}
+	return a.editOrSend(ctx, a.renderBotPage(store, tui.PageRequest{Kind: tui.PageMain}))
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -222,7 +229,27 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
-	store, err := tracker.LoadDir(a.cfg.DataDir)
+	// Board switching is a workspace-level action, handled before loading a board.
+	if a.boardMode() {
+		if update.CallbackQuery != nil {
+			base := strings.TrimPrefix(strings.TrimSpace(update.CallbackQuery.Data), "r:")
+			if base == "bd" {
+				return a.showBoards(ctx)
+			}
+			if strings.HasPrefix(base, "bd:") {
+				return a.selectBoard(ctx, strings.TrimPrefix(base, "bd:"))
+			}
+		}
+		if update.Message != nil && firstField(update.Message.Text) == "/boards" {
+			return a.showBoards(ctx)
+		}
+	}
+
+	dir, err := a.activeDataDir()
+	if err != nil {
+		dir = a.cfg.DataDir
+	}
+	store, err := tracker.LoadDir(dir)
 	if err != nil {
 		page := tui.RenderLoadError(tracker.DefaultSettings(), time.Now())
 		return a.editOrSend(ctx, page)
@@ -230,15 +257,13 @@ func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
 
 	if update.CallbackQuery != nil {
 		request := ParseCallback(update.CallbackQuery.Data)
-		page := tui.Render(store, request, time.Now())
-		return a.editOrSend(ctx, page)
+		return a.editOrSend(ctx, a.renderBotPage(store, request))
 	}
 
 	if update.Message != nil {
 		request := ParseCommand(update.Message.Text)
 		if !request.IsZero() {
-			page := tui.Render(store, request, time.Now())
-			return a.editOrSend(ctx, page)
+			return a.editOrSend(ctx, a.renderBotPage(store, request))
 		}
 	}
 
