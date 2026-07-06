@@ -172,6 +172,20 @@ func (c Client) SendRichMessage(ctx context.Context, request SendRichMessageRequ
 	return result, nil
 }
 
+type User struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	FirstName string `json:"first_name"`
+}
+
+func (c Client) GetMe(ctx context.Context) (User, error) {
+	var user User
+	if err := c.do(ctx, "getMe", map[string]any{}, &user); err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
 func (c Client) do(ctx context.Context, method string, body map[string]any, result any) error {
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -179,7 +193,7 @@ func (c Client) do(ctx context.Context, method string, body map[string]any, resu
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.methodURL(method), bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("build telegram request: %w", err)
+		return fmt.Errorf("build telegram request: %w", c.redact(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)

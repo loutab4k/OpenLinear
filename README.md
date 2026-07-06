@@ -194,7 +194,18 @@ CI runs the same quality gate on GitHub Actions.
 
 ## Security
 
-Do not commit `.env`, `.openlinear/state.json` or real exported project data containing secrets. The example data is synthetic.
+The only real secret is the Telegram bot token. Resolution order is env
+(`OPENLINEAR_BOT_TOKEN`) → stored credentials file. For convenient local work:
+
+```bash
+printf %s "$TOKEN" | openlinear login --chat-id 123456789   # stored 0600, outside the repo
+openlinear whoami
+openlinear logout
+```
+
+The token is never printed (redacted in errors) and never passed as a flag. Do
+not commit `.env`, `.openlinear/state.json` or real exported project data. If a
+token leaks, revoke it in @BotFather. See [`docs/secrets.md`](docs/secrets.md).
 
 ## License
 
@@ -394,7 +405,18 @@ CI запускает тот же quality gate в GitHub Actions.
 
 ## Безопасность
 
-Не коммить `.env`, `.openlinear/state.json` и реальные экспортированные данные, если в них есть секреты. Данные в примерах синтетические.
+Единственный настоящий секрет — токен бота Telegram. Порядок разрешения: env
+(`OPENLINEAR_BOT_TOKEN`) → сохранённый файл учётных данных. Для удобной локальной работы:
+
+```bash
+printf %s "$TOKEN" | openlinear login --chat-id 123456789   # хранится 0600, вне репозитория
+openlinear whoami
+openlinear logout
+```
+
+Токен нигде не печатается (редактируется в ошибках) и не передаётся флагом. Не
+коммить `.env`, `.openlinear/state.json` и реальные данные проекта. Если токен
+утёк — отзови его в @BotFather. См. [`docs/secrets.md`](docs/secrets.md).
 
 ## Лицензия
 
