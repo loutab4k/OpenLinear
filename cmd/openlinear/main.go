@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -34,6 +35,12 @@ func run(args []string) error {
 		return handleIssue(args[1:])
 	case "render":
 		return handleRender(args[1:])
+	case "login":
+		return handleLogin(args[1:])
+	case "logout":
+		return handleLogout()
+	case "whoami":
+		return handleWhoami()
 	case "help", "-h", "--help":
 		return usage()
 	}
@@ -67,6 +74,68 @@ func dataDirFlag(fs *flag.FlagSet) *string {
 		def = "openlinear"
 	}
 	return fs.String("data-dir", def, "directory with OpenLinear JSON files")
+}
+
+// handleLogin stores the bot token (0600, outside the repo) after validating it.
+// The token is read from --token-file, then OPENLINEAR_BOT_TOKEN, then stdin —
+// never a CLI flag, so it does not land in process arguments or shell history.
+func handleLogin(args []string) error {
+	fs := flag.NewFlagSet("login", flag.ContinueOnError)
+	chatID := fs.Int64("chat-id", 0, "default chat id to store (optional)")
+	tokenFile := fs.String("token-file", "", "read the bot token from this file instead of stdin")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	token, err := readToken(*tokenFile)
+	if err != nil {
+		return err
+	}
+	me, path, err := runtime.Login(context.Background(), token, *chatID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("logged in as @%s (id %d)\nsaved to %s\n", me.Username, me.ID, path)
+	return nil
+}
+
+func readToken(file string) (string, error) {
+	if strings.TrimSpace(file) != "" {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+	if tok := strings.TrimSpace(os.Getenv("OPENLINEAR_BOT_TOKEN")); tok != "" {
+		return tok, nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", err
+	}
+	tok := strings.TrimSpace(string(data))
+	if tok == "" {
+		return "", errors.New("no token: pipe it (e.g. `printf %s \"$TOKEN\" | openlinear login`), use --token-file, or set OPENLINEAR_BOT_TOKEN")
+	}
+	return tok, nil
+}
+
+func handleWhoami() error {
+	me, err := runtime.Whoami(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("@%s (id %d)\n", me.Username, me.ID)
+	return nil
+}
+
+func handleLogout() error {
+	path, err := runtime.Logout()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("removed %s\n", path)
+	return nil
 }
 
 func handleRender(args []string) error {
@@ -184,6 +253,10 @@ Usage:
   openlinear render [--data-dir openlinear] [page] [--json]
   openlinear sync [--data-dir openlinear]
   openlinear run [--data-dir openlinear]
+
+  openlinear login [--chat-id N] [--token-file path]   # token from stdin/file/env, stored 0600
+  openlinear whoami
+  openlinear logout
 
   openlinear issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
   openlinear issue move <id> <status>

@@ -66,6 +66,18 @@ func ConfigFromEnv(args []string) (Config, []string, error) {
 		cfg.ChatID = parsed
 	}
 
+	// Fill missing token/chat from stored credentials (env always wins).
+	if cfg.BotToken == "" || cfg.ChatID == 0 {
+		if creds, err := loadCredentials(); err == nil {
+			if cfg.BotToken == "" {
+				cfg.BotToken = creds.BotToken
+			}
+			if cfg.ChatID == 0 {
+				cfg.ChatID = creds.ChatID
+			}
+		}
+	}
+
 	fs := flag.NewFlagSet("openlinear", flag.ContinueOnError)
 	fs.StringVar(&cfg.DataDir, "data-dir", cfg.DataDir, "directory with OpenLinear JSON files")
 	fs.StringVar(&cfg.StatePath, "state", cfg.StatePath, "state file path")
