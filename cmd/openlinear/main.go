@@ -251,8 +251,8 @@ Usage:
   openlinear init [--data-dir openlinear]
   openlinear validate [--data-dir openlinear]
   openlinear render [--data-dir openlinear] [page] [--json]
-  openlinear sync [--data-dir openlinear]
-  openlinear run [--data-dir openlinear]
+  openlinear sync [--data-dir openlinear] [--boards boards.json]
+  openlinear run [--data-dir openlinear] [--boards boards.json]
 
   openlinear login [--chat-id N] [--token-file path]   # token from stdin/file/env, stored 0600
   openlinear whoami

@@ -86,6 +86,47 @@ func newPage(htmlBody string, buttons [][]Button) Page {
 	return Page{HTML: htmlBody, Text: htmlToText(htmlBody), Buttons: buttons}
 }
 
+// BoardInfo is one board shown in the multi-board picker.
+type BoardInfo struct {
+	ID   string
+	Name string
+}
+
+// RenderBoards renders the workspace board picker (multi-board mode).
+func RenderBoards(boards []BoardInfo, activeID string, now time.Time) Page {
+	r := renderer{store: tracker.Store{Settings: tracker.DefaultSettings()}, now: now}
+	var b strings.Builder
+	r.header(&b, "boards")
+	r.heading(&b, "🗂 Boards")
+	if len(boards) == 0 {
+		b.WriteString("<blockquote>— no boards</blockquote>")
+		return newPage(b.String(), [][]Button{{{Text: "← Main", CallbackData: "m"}}})
+	}
+	var lines []string
+	for _, bd := range boards {
+		mark := "•"
+		if bd.ID == activeID {
+			mark = "✅"
+		}
+		lines = append(lines, mark+" "+esc1(bd.Name))
+	}
+	b.WriteString("<blockquote>" + strings.Join(lines, "<br>") + "</blockquote>")
+
+	buttons := [][]Button{{{Text: "← Main", CallbackData: "m"}}}
+	btnRow := []Button{}
+	for _, bd := range boards {
+		btnRow = append(btnRow, Button{Text: clip(bd.Name, 20), CallbackData: "bd:" + bd.ID})
+		if len(btnRow) == 2 {
+			buttons = append(buttons, btnRow)
+			btnRow = []Button{}
+		}
+	}
+	if len(btnRow) > 0 {
+		buttons = append(buttons, btnRow)
+	}
+	return newPage(b.String(), buttons)
+}
+
 func (r renderer) mainPage() Page {
 	progress := r.store.Progress()
 	var b strings.Builder
