@@ -1,6 +1,6 @@
 # Architecture
 
-OpenLinear is intentionally small: project data in, Linear-like Telegram TUI out. The core architecture is built around replaceable boundaries, so teams can start with JSON and later add exporters from their own tools.
+OpenLinear is intentionally small: project data in, a Linear-like Telegram **rich message** out (Bot API 10.1). The core architecture is built around replaceable boundaries, so teams can start with JSON and later add exporters from their own tools.
 
 ## Components
 
@@ -16,11 +16,10 @@ tracker.Store
       │
       ▼
 tui.Render
-  - main page
-  - menu
-  - category pages
-  - issue pages
-  - width validation
+  - main / menu / category / issue pages
+  - projects picker + per-project pages
+  - rich-HTML body (headings, tables,
+    blockquotes, details) + validation
       │
       ▼
 runtime.App
@@ -30,11 +29,12 @@ runtime.App
       │
       ▼
 Telegram Bot API
+  - sendRichMessage / editMessageText(rich_message)
 ```
 
 ## One Message, Many Pages
 
-OpenLinear stores one Telegram status message per runtime state file. Every button click edits that message via `editMessageText`.
+OpenLinear stores one Telegram status message per runtime state file. Every button click edits that message via `editMessageText` with a `rich_message` body.
 
 This gives the chat an app-like interface:
 
@@ -42,6 +42,7 @@ This gives the chat an app-like interface:
 - the menu contains dynamic categories;
 - category pages contain issue tiles;
 - issue pages contain full details;
+- the projects picker scopes progress to one project;
 - navigation does not create new chat spam.
 
 ## Stateless Navigation
@@ -55,6 +56,8 @@ b              category code
 b:2            category page 2
 i:DEMO-1:b     issue DEMO-1, back to category b
 r:i:DEMO-1:b   refresh the same issue page
+pr             projects picker
+pr:backend     per-project page (project id)
 ```
 
 The server does not keep a navigation stack. This makes restarts safe.
@@ -89,16 +92,18 @@ Native Go is useful for development and debugging, but Docker is the default int
 
 ## Secrets
 
-OpenLinear reads secrets from environment variables. Doppler is recommended, not required.
+The only secret is the Telegram bot token. Resolution order is environment
+(`OPENLINEAR_BOT_TOKEN`) → a stored credentials file written by `openlinear
+login` (0600, in the OS config dir, outside the repo). The token is never
+printed and never passed as a flag. See [`secrets.md`](secrets.md).
 
 Supported patterns:
 
 ```bash
-docker compose up openlinear
+openlinear login                       # local: token stored 0600
+docker compose up openlinear           # CI/host: token via env
 doppler run -- docker compose up openlinear
-systemd EnvironmentFile
-Kubernetes Secret
-Nomad template
+systemd EnvironmentFile / Kubernetes Secret / Nomad template
 ```
 
 ## Extension Points
