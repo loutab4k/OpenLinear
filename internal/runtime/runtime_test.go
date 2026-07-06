@@ -83,3 +83,18 @@ func TestCredentialsRoundTripAndResolution(t *testing.T) {
 		t.Fatalf("file fallback, got token=%q chat=%d", cfg2.BotToken, cfg2.ChatID)
 	}
 }
+
+func TestParseCallbackProjects(t *testing.T) {
+	if got := ParseCallback("pr"); got != (tui.PageRequest{Kind: tui.PageProjects}) {
+		t.Fatalf("pr => %#v", got)
+	}
+	if got := ParseCallback("pr:backend"); got != (tui.PageRequest{ProjectID: "backend"}) {
+		t.Fatalf("pr:backend => %#v", got)
+	}
+	if got := ParseCallback("r:pr"); got != (tui.PageRequest{Kind: tui.PageProjects}) {
+		t.Fatalf("r:pr => %#v", got)
+	}
+	if got := CallbackFor(tui.PageRequest{ProjectID: "backend"}); got != "pr:backend" {
+		t.Fatalf("CallbackFor project => %q", got)
+	}
+}

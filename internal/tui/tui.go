@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	PageMain  = "main"
-	PageMenu  = "menu"
-	PageIssue = "issue"
+	PageMain     = "main"
+	PageMenu     = "menu"
+	PageIssue    = "issue"
+	PageProjects = "projects"
 )
 
 // Telegram rich-message limits we care about (Bot API 10.1).
@@ -24,16 +25,17 @@ const (
 )
 
 type PageRequest struct {
-	Kind     string
-	IssueID  string
-	Category string
-	Page     int
-	Back     string
-	BackPage int
+	Kind      string
+	IssueID   string
+	Category  string
+	ProjectID string
+	Page      int
+	Back      string
+	BackPage  int
 }
 
 func (r PageRequest) IsZero() bool {
-	return r.Kind == "" && r.IssueID == "" && r.Category == "" && r.Page == 0 && r.Back == "" && r.BackPage == 0
+	return r.Kind == "" && r.IssueID == "" && r.Category == "" && r.ProjectID == "" && r.Page == 0 && r.Back == "" && r.BackPage == 0
 }
 
 // Page carries a rich-HTML body (for Telegram rich_message) plus a plain-text
@@ -59,6 +61,10 @@ func Render(store tracker.Store, request PageRequest, now time.Time) Page {
 	store.Settings = store.Settings.WithDefaults()
 	r := renderer{store: store, now: now}
 	switch {
+	case request.ProjectID != "":
+		return r.projectPage(request)
+	case request.Kind == PageProjects:
+		return r.projectsPage()
 	case request.Category != "":
 		return r.categoryPage(request)
 	case request.Kind == PageMenu:
@@ -91,10 +97,69 @@ func (r renderer) mainPage() Page {
 	r.issueSection(&b, fmt.Sprintf("⏭️ Next (%d)", len(next)), next, 3)
 	r.attentionSection(&b)
 	r.hiddenSection(&b)
-	return newPage(b.String(), [][]Button{{
+	buttons := []Button{
 		{Text: "🔄 Refresh", CallbackData: "r:m"},
 		{Text: "📋 Menu", CallbackData: "p"},
+	}
+	if len(r.store.Projects) > 0 {
+		buttons = append(buttons, Button{Text: "📁 Projects", CallbackData: "pr"})
+	}
+	return newPage(b.String(), [][]Button{buttons})
+}
+
+func (r renderer) projectsPage() Page {
+	var b strings.Builder
+	r.header(&b, "projects")
+	r.heading(&b, "📁 Projects")
+	if len(r.store.Projects) == 0 {
+		b.WriteString("<blockquote>— no projects</blockquote>")
+		return newPage(b.String(), [][]Button{{{Text: "← Main", CallbackData: "m"}}})
+	}
+	b.WriteString("<table>")
+	for _, p := range r.store.Projects {
+		b.WriteString(row(esc1(r.projectLabel(p)), fmt.Sprintf("%d", len(r.store.IssuesForProject(p.Name)))))
+	}
+	b.WriteString("</table>")
+
+	buttons := [][]Button{{{Text: "← Main", CallbackData: "m"}}}
+	btnRow := []Button{}
+	for _, p := range r.store.Projects {
+		btnRow = append(btnRow, Button{Text: clip(r.projectLabel(p), 20), CallbackData: "pr:" + p.ID})
+		if len(btnRow) == 2 {
+			buttons = append(buttons, btnRow)
+			btnRow = []Button{}
+		}
+	}
+	if len(btnRow) > 0 {
+		buttons = append(buttons, btnRow)
+	}
+	return newPage(b.String(), buttons)
+}
+
+func (r renderer) projectPage(request PageRequest) Page {
+	project, ok := r.store.ProjectByID(request.ProjectID)
+	if !ok {
+		return r.messagePage("not found", "project not found", "← Projects", "pr")
+	}
+	issues := r.store.IssuesForProject(project.Name)
+	var b strings.Builder
+	r.header(&b, esc1(r.projectLabel(project)))
+	r.progressTable(&b, r.store.ProgressForProject(project.Name))
+	r.issueSection(&b, "🔧 Doing", filterByStatus(issues, tracker.StatusInProgress), 3)
+	r.issueSection(&b, "👀 Review", filterByStatus(issues, tracker.StatusInReview), 3)
+	open := filterNotStatus(issues, tracker.StatusDone)
+	r.issueSection(&b, fmt.Sprintf("📋 Open (%d)", len(open)), open, 5)
+	return newPage(b.String(), [][]Button{{
+		{Text: "← Main", CallbackData: "m"},
+		{Text: "📁 Projects", CallbackData: "pr"},
 	}})
+}
+
+func (r renderer) projectLabel(p tracker.Project) string {
+	if s := strings.TrimSpace(p.ShortName); s != "" {
+		return s
+	}
+	return defaultDash(p.Name)
 }
 
 func (r renderer) menuPage() Page {
@@ -447,6 +512,26 @@ func (r renderer) statusGlyph(status string) string {
 
 // --- small pure helpers ---
 
+func filterByStatus(issues []tracker.Issue, status string) []tracker.Issue {
+	var out []tracker.Issue
+	for _, issue := range issues {
+		if issue.Status == status {
+			out = append(out, issue)
+		}
+	}
+	return out
+}
+
+func filterNotStatus(issues []tracker.Issue, status string) []tracker.Issue {
+	var out []tracker.Issue
+	for _, issue := range issues {
+		if issue.Status != status {
+			out = append(out, issue)
+		}
+	}
+	return out
+}
+
 func esc(s string) string  { return html.EscapeString(strings.TrimSpace(s)) }
 func esc1(s string) string { return esc(strings.Join(strings.Fields(s), " ")) }
 
@@ -630,6 +715,10 @@ func ValidatePage(page Page) error {
 
 func RenderAll(store tracker.Store, now time.Time) []Page {
 	pages := []Page{Render(store, PageRequest{Kind: PageMain}, now), Render(store, PageRequest{Kind: PageMenu}, now)}
+	pages = append(pages, Render(store, PageRequest{Kind: PageProjects}, now))
+	for _, project := range store.Projects {
+		pages = append(pages, Render(store, PageRequest{ProjectID: project.ID}, now))
+	}
 	for _, category := range store.Settings.Categories {
 		pages = append(pages, Render(store, PageRequest{Category: category.Code}, now))
 	}

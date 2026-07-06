@@ -16,6 +16,11 @@ Pages:
 - `menu`
 - category page
 - issue detail page
+- projects picker (`/projects` or the `📁 Projects` button)
+- per-project page: progress and open work filtered to one project
+
+Projects come from `projects.json`; the picker uses each project `id` in
+`callback_data`, and the project page filters issues by the project `name`.
 
 Navigation edits the same Telegram message with `editMessageText`.
 

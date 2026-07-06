@@ -255,6 +255,8 @@ func ParseCommand(text string) tui.PageRequest {
 		return tui.PageRequest{Kind: tui.PageMain}
 	case "/menu":
 		return tui.PageRequest{Kind: tui.PageMenu}
+	case "/projects":
+		return tui.PageRequest{Kind: tui.PageProjects}
 	case "/issue":
 		if len(fields) < 2 {
 			return tui.PageRequest{Kind: tui.PageMenu}
@@ -277,6 +279,12 @@ func ParseCallback(data string) tui.PageRequest {
 	}
 	if data == "p" {
 		return tui.PageRequest{Kind: tui.PageMenu}
+	}
+	if data == "pr" {
+		return tui.PageRequest{Kind: tui.PageProjects}
+	}
+	if strings.HasPrefix(data, "pr:") {
+		return tui.PageRequest{ProjectID: strings.TrimPrefix(data, "pr:")}
 	}
 	if strings.HasPrefix(data, "r:") {
 		return ParseCallback(strings.TrimPrefix(data, "r:"))
@@ -305,6 +313,12 @@ func ParseCallback(data string) tui.PageRequest {
 }
 
 func CallbackFor(request tui.PageRequest) string {
+	if request.ProjectID != "" {
+		return "pr:" + request.ProjectID
+	}
+	if request.Kind == tui.PageProjects {
+		return "pr"
+	}
 	if request.Kind == tui.PageMain || (request.Kind == "" && request.Category == "") {
 		return "m"
 	}
