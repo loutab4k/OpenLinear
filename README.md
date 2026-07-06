@@ -192,6 +192,17 @@ make check
 
 CI runs the same quality gate on GitHub Actions.
 
+### Dogfooding
+
+OpenLinear tracks its own board in `examples/openlinear`:
+
+```bash
+make dogfood        # validate + plain-text preview
+make dogfood-sync   # push to Telegram (needs OPENLINEAR_BOT_TOKEN + OPENLINEAR_CHAT_ID)
+```
+
+Edit it with the same CLI, e.g. `openlinear issue move --data-dir examples/openlinear OL-6 Done`.
+
 ## Security
 
 Do not commit `.env`, `.openlinear/state.json` or real exported project data containing secrets. The example data is synthetic.
@@ -391,6 +402,17 @@ make check
 ```
 
 CI запускает тот же quality gate в GitHub Actions.
+
+### Догфудинг
+
+OpenLinear ведёт свою же доску в `examples/openlinear`:
+
+```bash
+make dogfood        # валидация + текстовый предпросмотр
+make dogfood-sync   # отправить в Telegram (нужны OPENLINEAR_BOT_TOKEN + OPENLINEAR_CHAT_ID)
+```
+
+Правится тем же CLI, например `openlinear issue move --data-dir examples/openlinear OL-6 Done`.
 
 ## Безопасность
 

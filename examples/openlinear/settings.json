@@ -1,0 +1,45 @@
+{
+  "title": "OpenLinear · self",
+  "width": 30,
+  "review_alert_hours": 48,
+  "external_link_label": "Open ↗",
+  "id_prefix": "OL",
+  "main_preview_category": "n",
+  "hidden_category_codes": ["b"],
+  "project_aliases": {
+    "OpenLinear": "OL"
+  },
+  "categories": [
+    {
+      "code": "n",
+      "label": "next",
+      "title": "NEXT",
+      "description": "Ready work",
+      "empty_text": "no next cards",
+      "filter": {
+        "statuses": ["Todo", "Backlog"],
+        "exclude_done": true
+      }
+    },
+    {
+      "code": "b",
+      "label": "backlog",
+      "title": "BACKLOG",
+      "description": "Later work",
+      "empty_text": "backlog is empty",
+      "filter": {
+        "statuses": ["Backlog"]
+      }
+    },
+    {
+      "code": "a",
+      "label": "attention",
+      "title": "ATTENTION",
+      "description": "Needs action",
+      "empty_text": "no alerts",
+      "filter": {
+        "attention_only": true
+      }
+    }
+  ]
+}
