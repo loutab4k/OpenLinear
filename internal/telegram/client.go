@@ -58,13 +58,6 @@ type GetUpdatesRequest struct {
 	Timeout int
 }
 
-type SendMessageRequest struct {
-	ChatID      int64
-	Text        string
-	ParseMode   string
-	ReplyMarkup *InlineKeyboardMarkup
-}
-
 type SendMessageResult struct {
 	MessageID int64 `json:"message_id"`
 }
@@ -74,6 +67,13 @@ type EditMessageTextRequest struct {
 	MessageID   int64
 	Text        string
 	ParseMode   string
+	RichHTML    string
+	ReplyMarkup *InlineKeyboardMarkup
+}
+
+type SendRichMessageRequest struct {
+	ChatID      int64
+	HTML        string
 	ReplyMarkup *InlineKeyboardMarkup
 }
 
@@ -122,30 +122,6 @@ func (c Client) GetUpdates(ctx context.Context, request GetUpdatesRequest) ([]Up
 	return updates, nil
 }
 
-func (c Client) SendMessage(ctx context.Context, request SendMessageRequest) (SendMessageResult, error) {
-	if request.ChatID == 0 {
-		return SendMessageResult{}, errors.New("telegram chat_id is required")
-	}
-	if strings.TrimSpace(request.Text) == "" {
-		return SendMessageResult{}, errors.New("telegram text is required")
-	}
-	body := map[string]any{
-		"chat_id": strconv.FormatInt(request.ChatID, 10),
-		"text":    request.Text,
-	}
-	if request.ParseMode != "" {
-		body["parse_mode"] = request.ParseMode
-	}
-	if request.ReplyMarkup != nil {
-		body["reply_markup"] = request.ReplyMarkup
-	}
-	var result SendMessageResult
-	if err := c.do(ctx, "sendMessage", body, &result); err != nil {
-		return SendMessageResult{}, err
-	}
-	return result, nil
-}
-
 func (c Client) EditMessageText(ctx context.Context, request EditMessageTextRequest) error {
 	if request.ChatID == 0 {
 		return errors.New("telegram chat_id is required")
@@ -153,22 +129,47 @@ func (c Client) EditMessageText(ctx context.Context, request EditMessageTextRequ
 	if request.MessageID <= 0 {
 		return errors.New("telegram message_id is required")
 	}
-	if strings.TrimSpace(request.Text) == "" {
-		return errors.New("telegram text is required")
+	if strings.TrimSpace(request.Text) == "" && strings.TrimSpace(request.RichHTML) == "" {
+		return errors.New("telegram text or rich_message is required")
 	}
 	body := map[string]any{
 		"chat_id":    strconv.FormatInt(request.ChatID, 10),
 		"message_id": request.MessageID,
-		"text":       request.Text,
 	}
-	if request.ParseMode != "" {
-		body["parse_mode"] = request.ParseMode
+	if strings.TrimSpace(request.RichHTML) != "" {
+		body["rich_message"] = map[string]any{"html": request.RichHTML}
+	} else {
+		body["text"] = request.Text
+		if request.ParseMode != "" {
+			body["parse_mode"] = request.ParseMode
+		}
 	}
 	if request.ReplyMarkup != nil {
 		body["reply_markup"] = request.ReplyMarkup
 	}
 	var ignored json.RawMessage
 	return c.do(ctx, "editMessageText", body, &ignored)
+}
+
+func (c Client) SendRichMessage(ctx context.Context, request SendRichMessageRequest) (SendMessageResult, error) {
+	if request.ChatID == 0 {
+		return SendMessageResult{}, errors.New("telegram chat_id is required")
+	}
+	if strings.TrimSpace(request.HTML) == "" {
+		return SendMessageResult{}, errors.New("telegram rich_message is required")
+	}
+	body := map[string]any{
+		"chat_id":      strconv.FormatInt(request.ChatID, 10),
+		"rich_message": map[string]any{"html": request.HTML},
+	}
+	if request.ReplyMarkup != nil {
+		body["reply_markup"] = request.ReplyMarkup
+	}
+	var result SendMessageResult
+	if err := c.do(ctx, "sendRichMessage", body, &result); err != nil {
+		return SendMessageResult{}, err
+	}
+	return result, nil
 }
 
 func (c Client) do(ctx context.Context, method string, body map[string]any, result any) error {

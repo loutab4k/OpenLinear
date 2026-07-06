@@ -1,6 +1,6 @@
 # OpenLinear
 
-OpenLinear is a Telegram-native project tracker/status UI. It renders issue data as a compact mobile-first TUI and edits one pinned Telegram message instead of spamming the chat.
+OpenLinear is a Telegram-native project tracker/status UI. It renders issue data as a rich mobile-first status message (headings, tables, block quotations via Bot API 10.1 rich messages) and edits one pinned Telegram message instead of spamming the chat.
 
 [Русская версия ниже](#русская-версия)
 
@@ -145,11 +145,24 @@ See [`examples/basic`](examples/basic) and [`docs/schema.md`](docs/schema.md).
 ```bash
 openlinear init --data-dir openlinear
 openlinear validate --data-dir openlinear
-openlinear render --data-dir openlinear
-openlinear render --data-dir openlinear p
+openlinear render --data-dir openlinear          # plain-text preview of the message
+openlinear render --data-dir openlinear p        # preview a specific page
+openlinear render --data-dir openlinear --json   # board state as JSON (for agents/scripts)
 openlinear sync --data-dir openlinear
 openlinear run --data-dir openlinear
 ```
+
+Editing issue data from the CLI (atomic, validated writes to `issues.json`):
+
+```bash
+openlinear issue add --data-dir openlinear --title "Wire renderer" --status Todo --priority 1 --labels telegram,docs
+openlinear issue move   <id> "In Review"
+openlinear issue done   <id>
+openlinear issue assign <id> "Alex"
+openlinear issue archive <id>
+```
+
+`issue add` prints the (auto-generated) issue id. IDs use `settings.id_prefix` (default `OL`) plus the next number.
 
 ## Integration Path
 
@@ -332,11 +345,24 @@ OpenLinear читает три JSON-файла:
 ```bash
 openlinear init --data-dir openlinear
 openlinear validate --data-dir openlinear
-openlinear render --data-dir openlinear
-openlinear render --data-dir openlinear p
+openlinear render --data-dir openlinear          # текстовый предпросмотр сообщения
+openlinear render --data-dir openlinear p        # предпросмотр конкретной страницы
+openlinear render --data-dir openlinear --json   # состояние доски в JSON (для агентов/скриптов)
 openlinear sync --data-dir openlinear
 openlinear run --data-dir openlinear
 ```
+
+Редактирование задач из CLI (атомарная запись в `issues.json` с валидацией):
+
+```bash
+openlinear issue add --data-dir openlinear --title "Wire renderer" --status Todo --priority 1 --labels telegram,docs
+openlinear issue move   <id> "In Review"
+openlinear issue done   <id>
+openlinear issue assign <id> "Alex"
+openlinear issue archive <id>
+```
+
+`issue add` печатает (авто-сгенерированный) id задачи. ID формируется из `settings.id_prefix` (по умолчанию `OL`) плюс следующий номер.
 
 ## Путь Внедрения
 

@@ -39,7 +39,9 @@ OpenLinear v1 uses JSON files as the source of truth. This keeps the product por
 }
 ```
 
-`width` defaults to `30`. Keep it small for mobile Telegram clients.
+`width` is legacy (kept for validation bounds); rich messages are laid out by Telegram, not by a fixed width.
+
+`id_prefix` (default `OL`) is the prefix for CLI-generated issue ids (`openlinear issue add` without `--id`): the prefix plus the next number after the highest existing numeric suffix.
 
 Category `code` values are used in Telegram `callback_data`; keep them short.
 

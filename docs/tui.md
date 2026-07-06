@@ -1,12 +1,10 @@
 # Telegram TUI
 
-OpenLinear renders all Telegram pages as fixed-width text inside an HTML `<pre>` block. This preserves alignment across Telegram clients.
+OpenLinear renders all Telegram pages as **rich messages** (Bot API 10.1): a page is an HTML body sent via `sendRichMessage` / `editMessageText` with a `rich_message` field. Telegram lays it out natively — headings (`<h4>`/`<h5>`), tables (`<table>`), block quotations (`<blockquote>`), lists (`<ul>/<li>`) and collapsible detail (`<details>`).
 
-## Width
+## Layout
 
-The default width is `30` cells. It is intentionally narrow for mobile screens.
-
-All rendering operations use display-cell width rather than byte length. Wide runes are counted as two cells and combining marks as zero cells.
+There is no fixed character width anymore — Telegram wraps text for the client. Line breaks inside a block use `<br>`; block structure comes from the block tags above. The renderer also produces a plain-text rendering of the same content (`Page.Text`) for CLI preview (`openlinear render`) and tests.
 
 ## Page Model
 
