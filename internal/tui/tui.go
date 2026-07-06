@@ -85,15 +85,15 @@ func (r renderer) mainPage() Page {
 	var b strings.Builder
 	r.header(&b, "updated "+relativeAge(r.now, r.now))
 	r.progressTable(&b, progress)
-	r.issueSection(&b, "Doing", r.issuesByStatus(tracker.StatusInProgress), 3)
-	r.issueSection(&b, "Review", r.issuesByStatus(tracker.StatusInReview), 3)
+	r.issueSection(&b, "🔧 Doing", r.issuesByStatus(tracker.StatusInProgress), 3)
+	r.issueSection(&b, "👀 Review", r.issuesByStatus(tracker.StatusInReview), 3)
 	next := r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory)
-	r.issueSection(&b, fmt.Sprintf("Next (%d)", len(next)), next, 3)
+	r.issueSection(&b, fmt.Sprintf("⏭️ Next (%d)", len(next)), next, 3)
 	r.attentionSection(&b)
 	r.hiddenSection(&b)
 	return newPage(b.String(), [][]Button{{
-		{Text: "Refresh", CallbackData: "r:m"},
-		{Text: "Menu", CallbackData: "p"},
+		{Text: "🔄 Refresh", CallbackData: "r:m"},
+		{Text: "📋 Menu", CallbackData: "p"},
 	}})
 }
 
@@ -183,12 +183,12 @@ func (r renderer) messagePage(label string, message string, buttonText string, c
 // --- rich-HTML building blocks ---
 
 func (r renderer) header(b *strings.Builder, label string) {
-	title := esc1(defaultDash(r.store.Settings.Title))
+	b.WriteString("<h4>" + esc1(defaultDash(r.store.Settings.Title)) + "</h4>")
+	meta := "🕐 " + esc(r.now.UTC().Format("2006-01-02 15:04 UTC"))
 	if strings.TrimSpace(label) != "" {
-		title += " — " + esc1(label)
+		meta += " · " + esc1(label)
 	}
-	b.WriteString("<h4>" + title + "</h4>")
-	b.WriteString("<p><i>" + esc(r.now.UTC().Format("2006-01-02 15:04 UTC")) + "</i></p>")
+	b.WriteString("<p><i>" + meta + "</i></p>")
 }
 
 func (r renderer) heading(b *strings.Builder, title string) {
@@ -196,7 +196,7 @@ func (r renderer) heading(b *strings.Builder, title string) {
 }
 
 func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
-	r.heading(b, fmt.Sprintf("Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
+	r.heading(b, fmt.Sprintf("📊 Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
 	b.WriteString("<table>")
 	for _, status := range r.store.Settings.StatusOrder {
 		b.WriteString("<tr><td>" + esc1(r.statusLabel(status)) + "</td><td><code>" +
@@ -209,7 +209,7 @@ func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
 func (r renderer) issueSection(b *strings.Builder, title string, issues []tracker.Issue, limit int) {
 	r.heading(b, title)
 	if len(issues) == 0 {
-		b.WriteString("<blockquote>none</blockquote>")
+		b.WriteString("<blockquote>— empty</blockquote>")
 		return
 	}
 	var lines []string
@@ -229,9 +229,9 @@ func (r renderer) issueSection(b *strings.Builder, title string, issues []tracke
 
 func (r renderer) attentionSection(b *strings.Builder) {
 	groups := r.store.AttentionGroups(r.now)
-	r.heading(b, "Attention")
+	r.heading(b, "⚠️ Attention")
 	if len(groups) == 0 {
-		b.WriteString("<blockquote>none</blockquote>\n\n")
+		b.WriteString("<blockquote>✅ all clear</blockquote>\n\n")
 		return
 	}
 	b.WriteString("<ul>")
@@ -257,13 +257,13 @@ func (r renderer) hiddenSection(b *strings.Builder) {
 	if len(items) == 0 {
 		return
 	}
-	r.heading(b, "Hidden")
+	r.heading(b, "📁 Hidden")
 	b.WriteString("<blockquote>" + strings.Join(items, "<br>") + "</blockquote>")
 }
 
-// issueLine renders "glyph P1 ID · project" with an optional stale-review alert.
+// issueLine renders "glyph •P ID · project" with an optional stale-review alert.
 func (r renderer) issueLine(issue tracker.Issue) string {
-	line := fmt.Sprintf("%s %s <code>%s</code>", esc1(r.statusGlyph(issue.Status)), priorityShort(issue.Priority), esc1(issue.ID))
+	line := fmt.Sprintf("%s %s <code>%s</code>", esc1(r.statusGlyph(issue.Status)), priorityMark(issue.Priority), esc1(issue.ID))
 	if project := r.projectName(issue.Project); project != "" {
 		line += " · " + esc1(project)
 	}
@@ -540,6 +540,20 @@ func priorityShort(priority tracker.Priority) string {
 		return "P0"
 	}
 	return fmt.Sprintf("P%d", priority.Value)
+}
+
+// priorityMark is a compact colored dot for dense issue lines.
+func priorityMark(priority tracker.Priority) string {
+	switch priority.Value {
+	case 1:
+		return "🔴"
+	case 2:
+		return "🟠"
+	case 3:
+		return "🟡"
+	default:
+		return "⚪"
+	}
 }
 
 func formatDate(value string) string {
