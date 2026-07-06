@@ -251,8 +251,12 @@ func (s Store) Issue(id string) (Issue, bool) {
 }
 
 func (s Store) Progress() Progress {
+	return s.progressOf(s.ActiveIssues())
+}
+
+func (s Store) progressOf(issues []Issue) Progress {
 	progress := Progress{ByStatus: map[string]int{}}
-	for _, issue := range s.ActiveIssues() {
+	for _, issue := range issues {
 		progress.Total++
 		progress.ByStatus[issue.Status]++
 		if issue.Status == StatusDone {
@@ -263,6 +267,35 @@ func (s Store) Progress() Progress {
 		progress.Percent = progress.Done * 100 / progress.Total
 	}
 	return progress
+}
+
+// IssuesForProject returns active issues belonging to the named project, sorted.
+func (s Store) IssuesForProject(name string) []Issue {
+	name = strings.TrimSpace(name)
+	var issues []Issue
+	for _, issue := range s.ActiveIssues() {
+		if strings.EqualFold(strings.TrimSpace(issue.Project), name) {
+			issues = append(issues, issue)
+		}
+	}
+	s.SortIssues(issues)
+	return issues
+}
+
+// ProgressForProject computes progress over one project's active issues.
+func (s Store) ProgressForProject(name string) Progress {
+	return s.progressOf(s.IssuesForProject(name))
+}
+
+// ProjectByID finds a project from projects.json by its id (case-insensitive).
+func (s Store) ProjectByID(id string) (Project, bool) {
+	id = strings.TrimSpace(id)
+	for _, p := range s.Projects {
+		if strings.EqualFold(strings.TrimSpace(p.ID), id) {
+			return p, true
+		}
+	}
+	return Project{}, false
 }
 
 func (s Store) IssuesForCategory(code string, now time.Time) []Issue {

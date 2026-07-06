@@ -70,14 +70,15 @@
     "id": "OL-6",
     "title": "Verify live rich-message send against a Bot API 10.1 client",
     "description": "Drive sync/run with a real bot token and chat, confirm the pinned message renders tables/headings and inline navigation edits the same message.",
-    "status": "In Review",
+    "status": "Done",
     "priority": 1,
     "project": "OpenLinear",
     "labels": ["telegram", "risk:launch-blocker"],
     "assignee": "Alex",
     "created_at": "2026-07-06T13:50:00Z",
     "started_at": "2026-07-03T10:00:00Z",
-    "updated_at": "2026-07-06T13:50:00Z"
+    "updated_at": "2026-07-06T14:25:00Z",
+    "completed_at": "2026-07-06T14:25:00Z"
   },
   {
     "id": "OL-7",
@@ -94,14 +95,15 @@
     "id": "OL-8",
     "title": "Dogfood: track OpenLinear on OpenLinear",
     "description": "Ship a real dataset describing this project's own board so render/sync/run can be tested against live data.",
-    "status": "In Progress",
+    "status": "Done",
     "priority": 2,
     "project": "OpenLinear",
     "labels": ["dx"],
     "assignee": "Alex",
     "created_at": "2026-07-06T14:00:00Z",
     "started_at": "2026-07-06T14:00:00Z",
-    "updated_at": "2026-07-06T14:00:00Z"
+    "updated_at": "2026-07-06T14:20:00Z",
+    "completed_at": "2026-07-06T14:20:00Z"
   },
   {
     "id": "OL-9",
@@ -124,5 +126,19 @@
     "labels": ["docs"],
     "created_at": "2026-07-06T14:03:00Z",
     "updated_at": "2026-07-06T14:03:00Z"
+  },
+  {
+    "id": "OL-11",
+    "title": "Project picker + per-project stats in the bot",
+    "description": "Select a project from projects.json and view progress and open work scoped to it. Groundwork for using OpenLinear across many projects on one board.",
+    "status": "Done",
+    "priority": 2,
+    "project": "OpenLinear",
+    "labels": ["telegram", "ui"],
+    "assignee": "Alex",
+    "created_at": "2026-07-06T14:30:00Z",
+    "started_at": "2026-07-06T14:30:00Z",
+    "updated_at": "2026-07-06T14:40:00Z",
+    "completed_at": "2026-07-06T14:40:00Z"
   }
 ]

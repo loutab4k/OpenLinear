@@ -177,7 +177,7 @@ openlinear issue archive <id>
 
 ## Telegram Navigation
 
-The main screen has only minimal controls: refresh and menu. The menu contains categories. Category pages show cards available in that section. Selecting a card opens the full issue page, similar to opening a pull request details page.
+The main screen has minimal controls: refresh, menu and (when `projects.json` is populated) projects. The menu contains categories. Category pages show cards available in that section. Selecting a card opens the full issue page, similar to opening a pull request details page. The projects picker (`/projects` or the `📁 Projects` button) opens a per-project page with progress and open work scoped to one project.
 
 Every internal page includes navigation back to the main screen and one step back where applicable.
 
@@ -399,7 +399,7 @@ openlinear issue archive <id>
 
 ## Навигация В Telegram
 
-На главной странице только минимальные действия: refresh и menu. В меню находятся категории. Внутри категории показываются карточки раздела. Нажатие на карточку открывает полную страницу задачи, по логике похожую на просмотр PR в GitHub.
+На главной странице минимальные действия: refresh, menu и (если заполнен `projects.json`) projects. В меню находятся категории. Внутри категории показываются карточки раздела. Нажатие на карточку открывает полную страницу задачи, по логике похожую на просмотр PR в GitHub. Пикер проектов (`/projects` или кнопка `📁 Projects`) открывает страницу проекта с прогрессом и открытой работой в рамках одного проекта.
 
 На каждой внутренней странице есть переход на главную и шаг назад, где это применимо.
 

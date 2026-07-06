@@ -109,3 +109,50 @@ func TestMainPageRichStructure(t *testing.T) {
 		t.Fatal("rich HTML must not use classic <blockquote expandable>")
 	}
 }
+
+func hasButton(p Page, callback string) bool {
+	for _, row := range p.Buttons {
+		for _, b := range row {
+			if b.CallbackData == callback {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestProjectPages(t *testing.T) {
+	store := tracker.Store{
+		Settings: tracker.DefaultSettings(),
+		Projects: []tracker.Project{{ID: "backend", Name: "Backend Foundation", ShortName: "Backend"}},
+		Issues: []tracker.Issue{
+			{ID: "A-1", Title: "One", Status: tracker.StatusInProgress, Priority: tracker.Priority{Value: 1}, Project: "Backend Foundation"},
+			{ID: "A-2", Title: "Two", Status: tracker.StatusDone, Project: "Backend Foundation"},
+			{ID: "B-1", Title: "Other", Status: tracker.StatusInProgress, Project: "Other"},
+		},
+	}
+	now := time.Date(2026, 1, 4, 10, 0, 0, 0, time.UTC)
+
+	if main := Render(store, PageRequest{Kind: PageMain}, now); !hasButton(main, "pr") {
+		t.Fatal("main page missing Projects button (pr)")
+	}
+
+	list := Render(store, PageRequest{Kind: PageProjects}, now)
+	if err := ValidatePage(list); err != nil {
+		t.Fatal(err)
+	}
+	if !hasButton(list, "pr:backend") {
+		t.Fatalf("projects list missing pr:backend button:\n%s", list.Text)
+	}
+
+	page := Render(store, PageRequest{ProjectID: "backend"}, now)
+	if err := ValidatePage(page); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(page.Text, "Progress 1/2") {
+		t.Fatalf("project progress should be 1/2 for Backend:\n%s", page.Text)
+	}
+	if strings.Contains(page.Text, "B-1") {
+		t.Fatalf("project page leaked another project's issue:\n%s", page.Text)
+	}
+}
