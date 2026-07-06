@@ -59,8 +59,8 @@ func TestMainKeyboardIsMinimal(t *testing.T) {
 	if len(page.Buttons) != 1 {
 		t.Fatalf("button rows = %d, want 1", len(page.Buttons))
 	}
-	if got := page.Buttons[0][0].Text; got != "Refresh" {
-		t.Fatalf("first button = %q, want Refresh", got)
+	if got := page.Buttons[0][0].Text; got != "🔄 Refresh" {
+		t.Fatalf("first button = %q, want 🔄 Refresh", got)
 	}
 	if strings.Contains(page.Text, "DEMO-1]") {
 		t.Fatal("main page should not expose hardcoded issue shortcut buttons")

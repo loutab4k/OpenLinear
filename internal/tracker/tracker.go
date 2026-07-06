@@ -418,11 +418,11 @@ func DefaultSettings() Settings {
 			StatusDone:       "done",
 		},
 		StatusGlyphs: map[string]string{
-			StatusInProgress: "▶",
-			StatusInReview:   "⊙",
-			StatusTodo:       "◷",
-			StatusBacklog:    "⊕",
-			StatusDone:       "✓",
+			StatusInProgress: "🔄",
+			StatusInReview:   "👀",
+			StatusTodo:       "🆕",
+			StatusBacklog:    "📥",
+			StatusDone:       "✅",
 		},
 	}
 }
