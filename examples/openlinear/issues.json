@@ -445,5 +445,27 @@
     "updated_at": "2026-07-07T05:53:37Z",
     "completed_at": "2026-07-07T05:53:37Z",
     "archived": false
+  },
+  {
+    "id": "OL-21",
+    "title": "Homebrew tap: formula generator + auto-update on release",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "infrastructure"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:58:36Z",
+    "updated_at": "2026-07-07T05:58:36Z",
+    "completed_at": "2026-07-07T05:58:36Z",
+    "archived": false
   }
 ]
