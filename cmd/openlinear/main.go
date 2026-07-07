@@ -17,6 +17,9 @@ import (
 	"github.com/loutab4k/OpenLinear/internal/tui"
 )
 
+// version is stamped by the release workflow via -ldflags "-X main.version=…".
+var version = "dev"
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -41,6 +44,9 @@ func run(args []string) error {
 		return handleLogout()
 	case "whoami":
 		return handleWhoami()
+	case "version", "--version", "-v":
+		fmt.Println(version)
+		return nil
 	case "help", "-h", "--help":
 		return usage()
 	}
@@ -257,6 +263,7 @@ Usage:
   openlinear login [--chat-id N] [--token-file path]   # token from stdin/file/env, stored 0600
   openlinear whoami
   openlinear logout
+  openlinear version
 
   openlinear issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
   openlinear issue move <id> <status>
