@@ -101,16 +101,16 @@ func RenderBoards(boards []BoardInfo, activeID string, now time.Time) Page {
 	r := renderer{store: tracker.Store{Settings: tracker.DefaultSettings()}, now: now}
 	var b strings.Builder
 	r.header(&b, "boards")
-	r.heading(&b, "🗂 Boards")
+	r.heading(&b, "BOARDS")
 	if len(boards) == 0 {
 		b.WriteString("<blockquote>— no boards</blockquote>")
 		return newPage(b.String(), [][]Button{{{Text: "← Main", CallbackData: "m"}}})
 	}
 	var lines []string
 	for _, bd := range boards {
-		mark := "•"
+		mark := "○"
 		if bd.ID == activeID {
-			mark = "✅"
+			mark = "●"
 		}
 		lines = append(lines, mark+" "+esc1(bd.Name))
 	}
@@ -136,17 +136,17 @@ func (r renderer) mainPage() Page {
 	var b strings.Builder
 	r.header(&b, "updated "+relativeAge(r.now, r.now))
 	r.progressTable(&b, progress)
-	r.issueSection(&b, "🔧 Doing", r.issuesByStatus(tracker.StatusInProgress), 3)
-	r.issueSection(&b, "👀 Review", r.issuesByStatus(tracker.StatusInReview), 3)
-	r.issueSection(&b, "⏭️ Next", r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory), 3)
+	r.issueSection(&b, "DOING", r.issuesByStatus(tracker.StatusInProgress), 3)
+	r.issueSection(&b, "REVIEW", r.issuesByStatus(tracker.StatusInReview), 3)
+	r.issueSection(&b, "NEXT", r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory), 3)
 	r.attentionSection(&b)
 	r.hiddenSection(&b)
 	buttons := []Button{
-		{Text: "🔄 Refresh", CallbackData: "r:m"},
-		{Text: "📋 Menu", CallbackData: "p"},
+		{Text: "Refresh", CallbackData: "r:m"},
+		{Text: "Menu", CallbackData: "p"},
 	}
 	if len(r.store.Projects) > 0 {
-		buttons = append(buttons, Button{Text: "📁 Projects", CallbackData: "pr"})
+		buttons = append(buttons, Button{Text: "Projects", CallbackData: "pr"})
 	}
 	return newPage(b.String(), [][]Button{buttons})
 }
@@ -154,7 +154,7 @@ func (r renderer) mainPage() Page {
 func (r renderer) projectsPage() Page {
 	var b strings.Builder
 	r.header(&b, "projects")
-	r.heading(&b, "📁 Projects")
+	r.heading(&b, "PROJECTS")
 	if len(r.store.Projects) == 0 {
 		b.WriteString("<blockquote>— no projects</blockquote>")
 		return newPage(b.String(), [][]Button{{{Text: "← Main", CallbackData: "m"}}})
@@ -189,12 +189,12 @@ func (r renderer) projectPage(request PageRequest) Page {
 	var b strings.Builder
 	r.header(&b, esc1(r.projectLabel(project)))
 	r.progressTable(&b, r.store.ProgressForProject(project.Name))
-	r.issueSection(&b, "🔧 Doing", filterByStatus(issues, tracker.StatusInProgress), 3)
-	r.issueSection(&b, "👀 Review", filterByStatus(issues, tracker.StatusInReview), 3)
-	r.issueSection(&b, "📋 Open", filterNotStatus(issues, tracker.StatusDone), 5)
+	r.issueSection(&b, "DOING", filterByStatus(issues, tracker.StatusInProgress), 3)
+	r.issueSection(&b, "REVIEW", filterByStatus(issues, tracker.StatusInReview), 3)
+	r.issueSection(&b, "OPEN", filterNotStatus(issues, tracker.StatusDone), 5)
 	return newPage(b.String(), [][]Button{{
 		{Text: "← Main", CallbackData: "m"},
-		{Text: "📁 Projects", CallbackData: "pr"},
+		{Text: "Projects", CallbackData: "pr"},
 	}})
 }
 
@@ -292,7 +292,7 @@ func (r renderer) messagePage(label string, message string, buttonText string, c
 
 func (r renderer) header(b *strings.Builder, label string) {
 	b.WriteString("<h4>" + esc1(defaultDash(r.store.Settings.Title)) + "</h4>")
-	meta := "🕐 " + esc(r.now.UTC().Format("2006-01-02 15:04 UTC"))
+	meta := esc(r.now.UTC().Format("2006-01-02 15:04 UTC"))
 	if strings.TrimSpace(label) != "" {
 		meta += " · " + esc1(label)
 	}
@@ -304,7 +304,7 @@ func (r renderer) heading(b *strings.Builder, title string) {
 }
 
 func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
-	r.heading(b, fmt.Sprintf("📊 Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
+	r.heading(b, fmt.Sprintf("PROGRESS %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
 	b.WriteString("<table>")
 	for _, status := range r.store.Settings.StatusOrder {
 		b.WriteString("<tr><td>" + esc1(r.statusGlyph(status)+" "+r.statusLabel(status)) + "</td><td><code>" +
@@ -338,24 +338,24 @@ func (r renderer) issueSection(b *strings.Builder, title string, issues []tracke
 // The heading already names the status, so no per-line status glyph; the title
 // beats project/labels for scanning — those stay on category and issue pages.
 func (r renderer) issueSummary(issue tracker.Issue) string {
-	line := fmt.Sprintf("%s <code>%s</code> · %s",
-		priorityMark(issue.Priority), esc1(issue.ID), esc1(clip(issue.Title, r.store.Settings.Width)))
+	line := fmt.Sprintf("<code>%s %s</code> · %s",
+		priorityShort(issue.Priority), esc1(issue.ID), esc1(clip(issue.Title, r.store.Settings.Width)))
 	if alert := r.issueAlert(issue); alert != "" {
-		line += "  " + esc1(alert)
+		line += "  <code>" + esc1(alert) + "</code>"
 	}
 	return line
 }
 
 func (r renderer) attentionSection(b *strings.Builder) {
 	groups := r.store.AttentionGroups(r.now)
-	r.heading(b, "⚠️ Attention")
+	r.heading(b, "ATTENTION")
 	if len(groups) == 0 {
-		b.WriteString("<blockquote>✅ all clear</blockquote>\n\n")
+		b.WriteString("<blockquote>— all clear</blockquote>\n\n")
 		return
 	}
 	b.WriteString("<ul>")
 	for _, group := range groups {
-		b.WriteString("<li>⚠ " + fmt.Sprintf("%d ", len(group.Issues)) + esc1(group.Title) + "</li>")
+		b.WriteString("<li>" + fmt.Sprintf("%d ", len(group.Issues)) + esc1(group.Title) + "</li>")
 	}
 	b.WriteString("</ul>")
 }
@@ -376,18 +376,18 @@ func (r renderer) hiddenSection(b *strings.Builder) {
 	if len(items) == 0 {
 		return
 	}
-	r.heading(b, "📁 Hidden")
+	r.heading(b, "HIDDEN")
 	b.WriteString("<blockquote>" + strings.Join(items, "<br>") + "</blockquote>")
 }
 
 // issueLine renders "glyph •P ID · project" with an optional stale-review alert.
 func (r renderer) issueLine(issue tracker.Issue) string {
-	line := fmt.Sprintf("%s %s <code>%s</code>", esc1(r.statusGlyph(issue.Status)), priorityMark(issue.Priority), esc1(issue.ID))
+	line := fmt.Sprintf("%s <code>%s %s</code>", esc1(r.statusGlyph(issue.Status)), priorityShort(issue.Priority), esc1(issue.ID))
 	if project := r.projectName(issue.Project); project != "" {
 		line += " · " + esc1(project)
 	}
 	if alert := r.issueAlert(issue); alert != "" {
-		line += "  " + esc1(alert)
+		line += "  <code>" + esc1(alert) + "</code>"
 	}
 	return line
 }
@@ -401,7 +401,7 @@ func (r renderer) issueAlert(issue tracker.Issue) string {
 		if startedAt.IsZero() {
 			startedAt, _ = tracker.ParseIssueTime(issue.CreatedAt)
 		}
-		return fmt.Sprintf("⚠ %dd", int(r.now.Sub(startedAt).Hours()/24))
+		return fmt.Sprintf("!%dd", int(r.now.Sub(startedAt).Hours()/24))
 	}
 	return ""
 }
@@ -686,20 +686,6 @@ func priorityShort(priority tracker.Priority) string {
 		return "P0"
 	}
 	return fmt.Sprintf("P%d", priority.Value)
-}
-
-// priorityMark is a compact colored dot for dense issue lines.
-func priorityMark(priority tracker.Priority) string {
-	switch priority.Value {
-	case 1:
-		return "🔴"
-	case 2:
-		return "🟠"
-	case 3:
-		return "🟡"
-	default:
-		return "⚪"
-	}
 }
 
 func formatDate(value string) string {
