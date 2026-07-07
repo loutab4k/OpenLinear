@@ -81,7 +81,7 @@ func (a *App) activeDataDir() (string, error) {
 func (a *App) renderBotPage(store tracker.Store, request tui.PageRequest) tui.Page {
 	page := tui.Render(store, request, time.Now())
 	if a.boardMode() && (request.Kind == tui.PageMain || request.IsZero()) {
-		btn := tui.Button{Text: "🗂 Boards", CallbackData: "bd"}
+		btn := tui.Button{Text: "Boards", CallbackData: "bd"}
 		if len(page.Buttons) > 0 && len(page.Buttons[0]) < 3 {
 			page.Buttons[0] = append(page.Buttons[0], btn)
 		} else {
