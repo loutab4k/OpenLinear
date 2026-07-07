@@ -24,17 +24,24 @@ Use env in CI; use the credentials file for convenient local work.
 ## CLI authentication
 
 ```bash
-# validate the token via getMe and store it (0600), outside the repo
-printf %s "$TOKEN" | openlinear login --chat-id 123456789
-openlinear login --token-file /path/to/token   # alternative source
+# interactive: hidden token prompt + optional chat id prompt
+ol auth login
 
-openlinear whoami    # prints the bot @username (never the token)
-openlinear logout    # removes the stored credentials file
+# non-interactive sources
+printf %s "$TOKEN" | ol auth login --chat-id 123456789
+ol auth login --token-file /path/to/token
+
+ol auth whoami    # prints the bot @username (never the token)
+ol auth logout    # removes the stored credentials file
 ```
 
-The token is read from `--token-file`, then `OPENLINEAR_BOT_TOKEN`, then stdin —
-never a flag. `login` writes to the per-user OS config dir with `0600`
-permissions:
+In Docker: `docker compose run --rm openlinear auth login` — credentials
+persist in the `config` volume (`XDG_CONFIG_HOME=/config`).
+
+The token is read from `--token-file`, then `OPENLINEAR_BOT_TOKEN`, then a
+hidden interactive prompt (on a TTY) or piped stdin — never a flag. `auth
+login` validates the token via getMe and writes to the per-user OS config dir
+with `0600` permissions:
 
 - Linux: `~/.config/openlinear/credentials.json` (respects `XDG_CONFIG_HOME`)
 - macOS: `~/Library/Application Support/openlinear/credentials.json`

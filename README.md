@@ -67,15 +67,23 @@ docker compose run --rm openlinear init --data-dir /data
 docker compose run --rm openlinear validate --data-dir /data
 ```
 
+Log in once (interactive: paste the token at a hidden prompt, then the chat id;
+credentials persist in the `config` volume):
+
+```bash
+docker compose run --rm openlinear auth login
+docker compose run --rm openlinear auth whoami
+```
+
 Run the Telegram bot:
 
 ```bash
-export OPENLINEAR_BOT_TOKEN="paste_bot_token_here"
-export OPENLINEAR_CHAT_ID="paste_chat_id_here"
-
 docker compose run --rm openlinear sync --data-dir /data
 docker compose up openlinear
 ```
+
+Environment variables (`OPENLINEAR_BOT_TOKEN`, `OPENLINEAR_CHAT_ID`) still work
+and always win over stored credentials — use them in CI.
 
 ## Optional Local Go Run
 
@@ -95,14 +103,18 @@ go run ./cmd/openlinear validate --data-dir openlinear
 go run ./cmd/openlinear render --data-dir openlinear
 ```
 
+Install the CLI as `ol` and log in (interactive hidden prompt):
+
+```bash
+make install
+ol auth login
+```
+
 Run the Telegram bot:
 
 ```bash
-export OPENLINEAR_BOT_TOKEN="paste_bot_token_here"
-export OPENLINEAR_CHAT_ID="paste_chat_id_here"
-
-go run ./cmd/openlinear sync --data-dir openlinear
-go run ./cmd/openlinear run --data-dir openlinear
+ol sync --data-dir openlinear
+ol run --data-dir openlinear
 ```
 
 The first `sync` sends a status message and stores its `message_id` in `.openlinear/state.json`. Later updates edit the same message.

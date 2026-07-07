@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -9,8 +10,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/term"
 
 	"github.com/loutab4k/OpenLinear/internal/runtime"
 	"github.com/loutab4k/OpenLinear/internal/tracker"
@@ -38,6 +42,9 @@ func run(args []string) error {
 		return handleIssue(args[1:])
 	case "render":
 		return handleRender(args[1:])
+	case "auth":
+		return handleAuth(args[1:])
+	// login/logout/whoami are kept as top-level aliases for compatibility.
 	case "login":
 		return handleLogin(args[1:])
 	case "logout":
@@ -82,11 +89,28 @@ func dataDirFlag(fs *flag.FlagSet) *string {
 	return fs.String("data-dir", def, "directory with OpenLinear JSON files")
 }
 
+func handleAuth(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: ol auth <login|whoami|logout>")
+	}
+	switch args[0] {
+	case "login":
+		return handleLogin(args[1:])
+	case "whoami":
+		return handleWhoami()
+	case "logout":
+		return handleLogout()
+	default:
+		return fmt.Errorf("unknown auth subcommand %q", args[0])
+	}
+}
+
 // handleLogin stores the bot token (0600, outside the repo) after validating it.
-// The token is read from --token-file, then OPENLINEAR_BOT_TOKEN, then stdin —
-// never a CLI flag, so it does not land in process arguments or shell history.
+// The token is read from --token-file, then OPENLINEAR_BOT_TOKEN, then a hidden
+// interactive prompt (TTY) or piped stdin — never a CLI flag, so it does not
+// land in process arguments or shell history.
 func handleLogin(args []string) error {
-	fs := flag.NewFlagSet("login", flag.ContinueOnError)
+	fs := flag.NewFlagSet("auth login", flag.ContinueOnError)
 	chatID := fs.Int64("chat-id", 0, "default chat id to store (optional)")
 	tokenFile := fs.String("token-file", "", "read the bot token from this file instead of stdin")
 	if err := fs.Parse(args); err != nil {
@@ -96,12 +120,22 @@ func handleLogin(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *chatID == 0 && stdinIsTTY() {
+		*chatID, err = promptChatID()
+		if err != nil {
+			return err
+		}
+	}
 	me, path, err := runtime.Login(context.Background(), token, *chatID)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("logged in as @%s (id %d)\nsaved to %s\n", me.Username, me.ID, path)
 	return nil
+}
+
+func stdinIsTTY() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 func readToken(file string) (string, error) {
@@ -115,15 +149,48 @@ func readToken(file string) (string, error) {
 	if tok := strings.TrimSpace(os.Getenv("OPENLINEAR_BOT_TOKEN")); tok != "" {
 		return tok, nil
 	}
+	if stdinIsTTY() {
+		// Interactive paste with echo off, so the token never shows on screen.
+		fmt.Fprint(os.Stderr, "Bot token (input hidden): ")
+		data, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", err
+		}
+		tok := strings.TrimSpace(string(data))
+		if tok == "" {
+			return "", errors.New("no token entered")
+		}
+		return tok, nil
+	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", err
 	}
 	tok := strings.TrimSpace(string(data))
 	if tok == "" {
-		return "", errors.New("no token: pipe it (e.g. `printf %s \"$TOKEN\" | openlinear login`), use --token-file, or set OPENLINEAR_BOT_TOKEN")
+		return "", errors.New("no token: pipe it (e.g. `printf %s \"$TOKEN\" | ol auth login`), use --token-file, or set OPENLINEAR_BOT_TOKEN")
 	}
 	return tok, nil
+}
+
+// promptChatID asks for the default chat id; empty input skips it (the chat id
+// is not secret, so it echoes normally).
+func promptChatID() (int64, error) {
+	fmt.Fprint(os.Stderr, "Default chat id (enter to skip): ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return 0, err
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return 0, nil
+	}
+	id, err := strconv.ParseInt(line, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("chat id must be a number: %w", err)
+	}
+	return id, nil
 }
 
 func handleWhoami() error {
@@ -251,25 +318,26 @@ func usage() error {
 }
 
 func usageText() string {
-	return `OpenLinear
+	return `OpenLinear (ol)
 
 Usage:
-  openlinear init [--data-dir openlinear]
-  openlinear validate [--data-dir openlinear]
-  openlinear render [--data-dir openlinear] [page] [--json]
-  openlinear sync [--data-dir openlinear] [--boards boards.json]
-  openlinear run [--data-dir openlinear] [--boards boards.json]
+  ol init [--data-dir openlinear]
+  ol validate [--data-dir openlinear]
+  ol render [--data-dir openlinear] [page] [--json]
+  ol sync [--data-dir openlinear] [--boards boards.json]
+  ol run [--data-dir openlinear] [--boards boards.json]
 
-  openlinear login [--chat-id N] [--token-file path]   # token from stdin/file/env, stored 0600
-  openlinear whoami
-  openlinear logout
-  openlinear version
+  ol auth login [--chat-id N] [--token-file path]   # interactive hidden prompt on a TTY;
+                                                    # also reads stdin/file/env; stored 0600
+  ol auth whoami
+  ol auth logout
+  ol version
 
-  openlinear issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
-  openlinear issue move <id> <status>
-  openlinear issue done <id>
-  openlinear issue assign <id> <name>
-  openlinear issue archive <id>
+  ol issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
+  ol issue move <id> <status>
+  ol issue done <id>
+  ol issue assign <id> <name>
+  ol issue archive <id>
 
 Pages:
   m              main

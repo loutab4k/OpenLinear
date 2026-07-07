@@ -7,10 +7,17 @@ services:
       OPENLINEAR_CHAT_ID: ${OPENLINEAR_CHAT_ID:-}
       OPENLINEAR_STATUS_MESSAGE_ID: ${OPENLINEAR_STATUS_MESSAGE_ID:-}
       OPENLINEAR_STATE_PATH: /state/state.json
+      # Credentials from `ol auth login` land in $XDG_CONFIG_HOME/openlinear
+      # and persist in the named volume below.
+      XDG_CONFIG_HOME: /config
       # Multi-board mode: point at a boards.json whose data_dir paths are
       # container paths (e.g. /data/team-a), and mount those dirs below.
       OPENLINEAR_BOARDS_FILE: ${OPENLINEAR_BOARDS_FILE:-}
     volumes:
       - ./openlinear:/data
       - ./.openlinear:/state
+      - config:/config
     command: ["run", "--data-dir", "/data"]
+
+volumes:
+  config:
