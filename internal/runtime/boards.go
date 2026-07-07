@@ -120,7 +120,7 @@ func (a *App) selectBoard(ctx context.Context, id string) error {
 	// Load first, persist after: switching to a broken board must not stick.
 	store, err := tracker.LoadDir(dir)
 	if err != nil {
-		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
+		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now(), err.Error()))
 	}
 	state, err := a.loadState()
 	if err != nil {

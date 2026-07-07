@@ -70,7 +70,8 @@ docker compose run --rm openlinear validate --data-dir examples/basic
 docker compose run --rm openlinear render --data-dir examples/basic
 ```
 
-Create your own data directory:
+Create your own data directory (don't skip this: without it the bot has no
+`issues.json` and replies with "load error / could not load tracker data"):
 
 ```bash
 docker compose run --rm openlinear init --data-dir /data
