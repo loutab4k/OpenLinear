@@ -1,20 +1,26 @@
-.PHONY: fmt test vet check render validate dogfood dogfood-sync
+.PHONY: fmt fmt-check test vet check render validate dogfood dogfood-sync
 
 DOGFOOD_DIR ?= examples/openlinear
 
 fmt:
 	gofmt -w ./cmd ./internal
 
+fmt-check:
+	test -z "$$(gofmt -l ./cmd ./internal)"
+
 test:
-	go test ./...
+	go test -race ./...
 
 vet:
 	go vet ./...
 
-check: fmt test vet validate
+# The quality gate: CI runs exactly this, so local check == CI check.
+check: fmt-check vet test validate
 
+# Validate every example board (both boards from examples/boards.json).
 validate:
 	go run ./cmd/openlinear validate --data-dir examples/basic
+	go run ./cmd/openlinear validate --data-dir examples/openlinear
 
 render:
 	go run ./cmd/openlinear render --data-dir examples/basic

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -95,7 +96,7 @@ func New(cfg Config) *App {
 	return &App{cfg: cfg}
 }
 
-func (a *App) Validate(ctx context.Context) error {
+func (a *App) Validate() error {
 	store, err := tracker.LoadDir(a.cfg.DataDir)
 	if err != nil {
 		return err
@@ -106,11 +107,10 @@ func (a *App) Validate(ctx context.Context) error {
 			return err
 		}
 	}
-	_ = ctx
 	return nil
 }
 
-func (a *App) Render(ctx context.Context, request tui.PageRequest) (string, error) {
+func (a *App) Render(request tui.PageRequest) (string, error) {
 	store, err := tracker.LoadDir(a.cfg.DataDir)
 	if err != nil {
 		return "", err
@@ -119,7 +119,6 @@ func (a *App) Render(ctx context.Context, request tui.PageRequest) (string, erro
 	if err := tui.ValidatePage(page); err != nil {
 		return "", err
 	}
-	_ = ctx
 	return page.Text, nil
 }
 
@@ -203,6 +202,7 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	backoff := time.Second
 	for {
 		select {
 		case <-ctx.Done():
@@ -216,19 +216,59 @@ func (a *App) Run(ctx context.Context) error {
 			Limit:   a.cfg.PollLimit,
 		})
 		if err != nil {
-			return err
+			// Transient failures (network, 429) must not kill a long-lived bot:
+			// log, back off, retry. Only a cancelled context stops the loop.
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			log.Printf("openlinear: getUpdates: %v (retrying in %s)", err, backoff)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+			}
+			if backoff < 30*time.Second {
+				backoff *= 2
+			}
+			continue
 		}
+		backoff = time.Second
 
 		for _, update := range updates {
 			offset = update.UpdateID + 1
-			if err := a.handleUpdate(ctx, update); err != nil {
-				return err
+			if err := a.handleUpdate(ctx, client, update); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				log.Printf("openlinear: update %d: %v", update.UpdateID, err)
 			}
 		}
 	}
 }
 
-func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
+// allowedChat rejects updates from any chat other than the configured one, so
+// strangers who find the bot cannot read the board or switch it.
+func (a *App) allowedChat(update telegram.Update) bool {
+	if update.Message != nil {
+		return update.Message.Chat.ID == a.cfg.ChatID
+	}
+	if update.CallbackQuery != nil {
+		return update.CallbackQuery.Message != nil && update.CallbackQuery.Message.Chat.ID == a.cfg.ChatID
+	}
+	return false
+}
+
+func (a *App) handleUpdate(ctx context.Context, client telegram.Client, update telegram.Update) error {
+	if !a.allowedChat(update) {
+		return nil
+	}
+	if update.CallbackQuery != nil {
+		// Best-effort ack so the client stops the button spinner immediately.
+		if err := client.AnswerCallbackQuery(ctx, update.CallbackQuery.ID); err != nil {
+			log.Printf("openlinear: answerCallbackQuery: %v", err)
+		}
+	}
+
 	// Board switching is a workspace-level action, handled before loading a board.
 	if a.boardMode() {
 		if update.CallbackQuery != nil {
@@ -247,7 +287,9 @@ func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
 
 	dir, err := a.activeDataDir()
 	if err != nil {
-		dir = a.cfg.DataDir
+		// A broken boards file must be visible, not silently fall back to
+		// rendering some other board.
+		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
 	}
 	store, err := tracker.LoadDir(dir)
 	if err != nil {

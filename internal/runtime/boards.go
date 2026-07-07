@@ -117,6 +117,11 @@ func (a *App) selectBoard(ctx context.Context, id string) error {
 	if dir == "" {
 		return a.showBoards(ctx)
 	}
+	// Load first, persist after: switching to a broken board must not stick.
+	store, err := tracker.LoadDir(dir)
+	if err != nil {
+		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
+	}
 	state, err := a.loadState()
 	if err != nil {
 		return err
@@ -124,10 +129,6 @@ func (a *App) selectBoard(ctx context.Context, id string) error {
 	state.BoardID = id
 	if err := a.saveState(state); err != nil {
 		return err
-	}
-	store, err := tracker.LoadDir(dir)
-	if err != nil {
-		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
 	}
 	return a.editOrSend(ctx, a.renderBotPage(store, tui.PageRequest{Kind: tui.PageMain}))
 }

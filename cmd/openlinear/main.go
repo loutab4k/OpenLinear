@@ -58,7 +58,7 @@ func run(args []string) error {
 	case "init":
 		return initDataDir(cfg.DataDir)
 	case "validate":
-		return app.Validate(ctx)
+		return app.Validate()
 	case "sync":
 		return app.Sync(ctx)
 	case "run":
@@ -158,7 +158,7 @@ func handleRender(args []string) error {
 	if fs.NArg() > 0 {
 		request = runtime.ParseCallback(fs.Arg(0))
 	}
-	text, err := app.Render(context.Background(), request)
+	text, err := app.Render(request)
 	if err != nil {
 		return err
 	}

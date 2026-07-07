@@ -7,6 +7,9 @@ services:
       OPENLINEAR_CHAT_ID: ${OPENLINEAR_CHAT_ID:-}
       OPENLINEAR_STATUS_MESSAGE_ID: ${OPENLINEAR_STATUS_MESSAGE_ID:-}
       OPENLINEAR_STATE_PATH: /state/state.json
+      # Multi-board mode: point at a boards.json whose data_dir paths are
+      # container paths (e.g. /data/team-a), and mount those dirs below.
+      OPENLINEAR_BOARDS_FILE: ${OPENLINEAR_BOARDS_FILE:-}
     volumes:
       - ./openlinear:/data
       - ./.openlinear:/state

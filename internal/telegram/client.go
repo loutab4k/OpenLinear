@@ -178,6 +178,16 @@ type User struct {
 	FirstName string `json:"first_name"`
 }
 
+// AnswerCallbackQuery acknowledges a button press so the Telegram client
+// stops showing the loading spinner on the inline keyboard.
+func (c Client) AnswerCallbackQuery(ctx context.Context, callbackQueryID string) error {
+	if strings.TrimSpace(callbackQueryID) == "" {
+		return errors.New("telegram callback_query_id is required")
+	}
+	var ignored json.RawMessage
+	return c.do(ctx, "answerCallbackQuery", map[string]any{"callback_query_id": callbackQueryID}, &ignored)
+}
+
 func (c Client) GetMe(ctx context.Context) (User, error) {
 	var user User
 	if err := c.do(ctx, "getMe", map[string]any{}, &user); err != nil {
