@@ -101,10 +101,15 @@ func dataDirFlag(fs *flag.FlagSet) *string {
 }
 
 // dockerCompose shells out to `docker compose <args...>` for the bot
-// lifecycle (start/stop/status/logs). It needs a compose.yaml in the current
-// directory (or a parent — compose searches upward).
+// lifecycle (start/stop/status/logs), from the resolved compose project dir
+// so the commands work from anywhere.
 func dockerCompose(args ...string) error {
+	dir, err := composeDir()
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command("docker", append([]string{"compose"}, args...)...)
+	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -112,7 +117,60 @@ func dockerCompose(args ...string) error {
 		}
 		return err
 	}
+	rememberComposeDir(dir)
 	return nil
+}
+
+var composeFileNames = []string{"compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"}
+
+// composeDir resolves the docker compose project directory:
+// $OPENLINEAR_COMPOSE_DIR, then a compose file in the current directory or any
+// parent, then the directory remembered from the last successful run.
+func composeDir() (string, error) {
+	if dir := strings.TrimSpace(os.Getenv("OPENLINEAR_COMPOSE_DIR")); dir != "" {
+		return dir, nil
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		for dir := cwd; ; dir = filepath.Dir(dir) {
+			for _, name := range composeFileNames {
+				if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+					return dir, nil
+				}
+			}
+			if dir == filepath.Dir(dir) {
+				break
+			}
+		}
+	}
+	if data, err := os.ReadFile(composeDirStatePath()); err == nil {
+		if dir := strings.TrimSpace(string(data)); dir != "" {
+			return dir, nil
+		}
+	}
+	return "", errors.New("no compose.yaml found: run once from the OpenLinear project directory (ol remembers it) or set OPENLINEAR_COMPOSE_DIR")
+}
+
+// composeDirStatePath lives next to the stored credentials
+// (e.g. ~/.config/openlinear/compose-dir).
+func composeDirStatePath() string {
+	creds, err := runtime.CredentialsPath()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(creds), "compose-dir")
+}
+
+// rememberComposeDir persists the project dir so later ol start/stop/status/
+// logs work from any directory. Best-effort: failures are ignored.
+func rememberComposeDir(dir string) {
+	path := composeDirStatePath()
+	if path == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(dir+"\n"), 0o644)
 }
 
 func handleAuth(args []string) error {
