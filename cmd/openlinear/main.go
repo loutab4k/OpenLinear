@@ -56,6 +56,9 @@ func run(args []string) error {
 		return handleWhoami()
 	case "start":
 		return dockerCompose(append([]string{"up", "-d"}, append(args[1:], "openlinear")...)...)
+	case "update":
+		// Restart alone keeps the stale image; new code needs a rebuild.
+		return dockerCompose("up", "-d", "--build", "openlinear")
 	case "stop":
 		return dockerCompose("stop", "openlinear")
 	case "status":
@@ -475,6 +478,7 @@ Bot:
   ol sync [--boards boards.json]    send/refresh the status message once
   ol run  [--boards boards.json]    long-poll in the foreground
   ol start [--build]                run the bot in docker (compose up -d)
+  ol update                         rebuild the image and restart the bot
   ol stop                           stop the docker bot
   ol status                         show the docker bot state
   ol logs [-f]                      show the docker bot logs
