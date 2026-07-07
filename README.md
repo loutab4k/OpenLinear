@@ -97,7 +97,8 @@ With the CLI installed locally (`make install` or Homebrew), the docker bot
 lifecycle is:
 
 ```bash
-ol start    # docker compose up -d (add --build after code changes)
+ol start    # docker compose up -d
+ol update   # rebuild the image and restart (after code changes)
 ol status
 ol logs -f
 ol stop
