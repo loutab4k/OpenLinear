@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 
 	"golang.org/x/term"
 
@@ -265,14 +267,17 @@ func handleRender(args []string) error {
 
 func handleIssue(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: openlinear issue <add|move|done|assign|archive> ...")
+		return errors.New("usage: ol issue <list|show|add|move|done|assign|archive> ...")
 	}
 	sub := args[0]
 	fs := flag.NewFlagSet("issue "+sub, flag.ContinueOnError)
 	dir := dataDirFlag(fs)
 	var in tracker.Issue
 	var labels string
-	if sub == "add" {
+	var filterStatus, filterProject string
+	var asJSON bool
+	switch sub {
+	case "add":
 		fs.StringVar(&in.Title, "title", "", "issue title (required)")
 		fs.StringVar(&in.ID, "id", "", "issue id (auto-generated if empty)")
 		fs.StringVar(&in.Status, "status", "", "status (default Todo)")
@@ -280,6 +285,10 @@ func handleIssue(args []string) error {
 		fs.StringVar(&in.Project, "project", "", "project name")
 		fs.StringVar(&in.Assignee, "assignee", "", "assignee")
 		fs.StringVar(&labels, "labels", "", "comma-separated labels")
+	case "list":
+		fs.StringVar(&filterStatus, "status", "", "filter by status")
+		fs.StringVar(&filterProject, "project", "", "filter by project")
+		fs.BoolVar(&asJSON, "json", false, "output as JSON")
 	}
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -288,6 +297,18 @@ func handleIssue(args []string) error {
 	app := runtime.New(runtime.Config{DataDir: *dir})
 
 	switch sub {
+	case "list":
+		return issueList(*dir, filterStatus, filterProject, asJSON)
+	case "show":
+		if len(rest) < 1 {
+			return errors.New("usage: ol issue show <id>")
+		}
+		text, err := app.Render(tui.PageRequest{Kind: tui.PageIssue, IssueID: rest[0]})
+		if err != nil {
+			return err
+		}
+		fmt.Println(text)
+		return nil
 	case "add":
 		if strings.TrimSpace(in.Title) == "" {
 			return errors.New("issue add requires --title")
@@ -326,6 +347,40 @@ func handleIssue(args []string) error {
 	}
 }
 
+// issueList prints active issues as a terminal table (or JSON), optionally
+// filtered by status/project (case-insensitive).
+func issueList(dir string, status string, project string, asJSON bool) error {
+	store, err := tracker.LoadDir(dir)
+	if err != nil {
+		return err
+	}
+	var issues []tracker.Issue
+	for _, issue := range store.ActiveIssues() {
+		if status != "" && !strings.EqualFold(issue.Status, status) {
+			continue
+		}
+		if project != "" && !strings.EqualFold(strings.TrimSpace(issue.Project), project) {
+			continue
+		}
+		issues = append(issues, issue)
+	}
+	if asJSON {
+		data, err := json.MarshalIndent(issues, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tSTATUS\tPRIO\tPROJECT\tTITLE")
+	for _, issue := range issues {
+		fmt.Fprintf(w, "%s\t%s\tP%d\t%s\t%s\n",
+			issue.ID, issue.Status, issue.Priority.Value, issue.Project, issue.Title)
+	}
+	return w.Flush()
+}
+
 func splitCSV(value string) []string {
 	var out []string
 	for _, part := range strings.Split(value, ",") {
@@ -342,33 +397,40 @@ func usage() error {
 }
 
 func usageText() string {
-	return `OpenLinear (ol)
+	return `OpenLinear (ol) — Telegram-native project tracker
 
-Usage:
-  ol init [--data-dir openlinear]
-  ol validate [--data-dir openlinear]
-  ol render [--data-dir openlinear] [page] [--json]
-  ol sync [--data-dir openlinear] [--boards boards.json]
-  ol run [--data-dir openlinear] [--boards boards.json]
+Board (all take [--data-dir openlinear]):
+  ol init                      create sample data files
+  ol validate                  check data files and every rendered page
+  ol render [page] [--json]    preview the board in the terminal
 
-  ol start [--build]   # run the bot in docker (docker compose up -d)
-  ol stop              # stop the docker bot
-  ol status            # show the docker bot state
-  ol logs [-f]         # show the docker bot logs
-
-  ol auth login [--chat-id N] [--token-file path]   # interactive hidden prompt on a TTY;
-                                                    # also reads stdin/file/env; stored 0600
-  ol auth whoami
-  ol auth logout
-  ol version
-
-  ol issue add [--data-dir openlinear] --title T [--id --status --priority --project --assignee --labels a,b]
+Issues:
+  ol issue list [--status S] [--project P] [--json]
+  ol issue show <id>
+  ol issue add --title T [--id --status --priority --project --assignee --labels a,b]
   ol issue move <id> <status>
   ol issue done <id>
   ol issue assign <id> <name>
   ol issue archive <id>
 
-Pages:
+Bot:
+  ol sync [--boards boards.json]    send/refresh the status message once
+  ol run  [--boards boards.json]    long-poll in the foreground
+  ol start [--build]                run the bot in docker (compose up -d)
+  ol stop                           stop the docker bot
+  ol status                         show the docker bot state
+  ol logs [-f]                      show the docker bot logs
+
+Auth (token: hidden prompt on a TTY, or stdin/--token-file/env; stored 0600):
+  ol auth login [--chat-id N] [--token-file path]
+  ol auth whoami
+  ol auth logout
+
+Misc:
+  ol version
+  ol help
+
+Render pages:
   m              main
   p              menu
   <code>         category page from settings.json

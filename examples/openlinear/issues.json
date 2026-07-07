@@ -362,7 +362,7 @@
     "id": "OL-17",
     "title": "Release pipeline: version command + tagged binaries",
     "description": "",
-    "status": "Todo",
+    "status": "Done",
     "status_type": "",
     "priority": {
       "value": 2,
@@ -376,7 +376,8 @@
     "url": "",
     "git_branch_name": "",
     "created_at": "2026-07-07T05:08:42Z",
-    "updated_at": "2026-07-07T05:08:42Z",
+    "updated_at": "2026-07-07T05:53:25Z",
+    "completed_at": "2026-07-07T05:53:25Z",
     "archived": false
   },
   {
@@ -421,6 +422,28 @@
     "created_at": "2026-07-07T05:50:50Z",
     "updated_at": "2026-07-07T05:50:50Z",
     "completed_at": "2026-07-07T05:50:50Z",
+    "archived": false
+  },
+  {
+    "id": "OL-20",
+    "title": "ol issue list/show + grouped --help",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "quality"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:53:37Z",
+    "updated_at": "2026-07-07T05:53:37Z",
+    "completed_at": "2026-07-07T05:53:37Z",
     "archived": false
   }
 ]
