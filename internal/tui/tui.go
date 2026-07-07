@@ -134,8 +134,7 @@ func (r renderer) mainPage() Page {
 	r.progressTable(&b, progress)
 	r.issueSection(&b, "🔧 Doing", r.issuesByStatus(tracker.StatusInProgress), 3)
 	r.issueSection(&b, "👀 Review", r.issuesByStatus(tracker.StatusInReview), 3)
-	next := r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory)
-	r.issueSection(&b, fmt.Sprintf("⏭️ Next (%d)", len(next)), next, 3)
+	r.issueSection(&b, "⏭️ Next", r.issuesForDefaultCategory(r.store.Settings.MainPreviewCategory), 3)
 	r.attentionSection(&b)
 	r.hiddenSection(&b)
 	buttons := []Button{
@@ -188,8 +187,7 @@ func (r renderer) projectPage(request PageRequest) Page {
 	r.progressTable(&b, r.store.ProgressForProject(project.Name))
 	r.issueSection(&b, "🔧 Doing", filterByStatus(issues, tracker.StatusInProgress), 3)
 	r.issueSection(&b, "👀 Review", filterByStatus(issues, tracker.StatusInReview), 3)
-	open := filterNotStatus(issues, tracker.StatusDone)
-	r.issueSection(&b, fmt.Sprintf("📋 Open (%d)", len(open)), open, 5)
+	r.issueSection(&b, "📋 Open", filterNotStatus(issues, tracker.StatusDone), 5)
 	return newPage(b.String(), [][]Button{{
 		{Text: "← Main", CallbackData: "m"},
 		{Text: "📁 Projects", CallbackData: "pr"},
@@ -313,6 +311,9 @@ func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
 }
 
 func (r renderer) issueSection(b *strings.Builder, title string, issues []tracker.Issue, limit int) {
+	if len(issues) > 0 {
+		title = fmt.Sprintf("%s (%d)", title, len(issues))
+	}
 	r.heading(b, title)
 	if len(issues) == 0 {
 		b.WriteString("<blockquote>— empty</blockquote>")
@@ -324,13 +325,21 @@ func (r renderer) issueSection(b *strings.Builder, title string, issues []tracke
 			entries = append(entries, fmt.Sprintf("… +%d more", len(issues)-limit))
 			break
 		}
-		line := r.issueLine(issue)
-		if tags := r.compactLabels(issue.Labels); len(tags) > 0 {
-			line += "  " + esc1(strings.Join(tags, ", "))
-		}
-		entries = append(entries, line+"<br>"+esc1(issue.Title))
+		entries = append(entries, r.issueSummary(issue))
 	}
 	b.WriteString("<blockquote>" + strings.Join(entries, "<br>") + "</blockquote>")
+}
+
+// issueSummary is a one-line "priority ID · title" entry for status sections.
+// The heading already names the status, so no per-line status glyph; the title
+// beats project/labels for scanning — those stay on category and issue pages.
+func (r renderer) issueSummary(issue tracker.Issue) string {
+	line := fmt.Sprintf("%s <code>%s</code> · %s",
+		priorityMark(issue.Priority), esc1(issue.ID), esc1(clip(issue.Title, r.store.Settings.Width)))
+	if alert := r.issueAlert(issue); alert != "" {
+		line += "  " + esc1(alert)
+	}
+	return line
 }
 
 func (r renderer) attentionSection(b *strings.Builder) {
@@ -591,7 +600,9 @@ func bar(count int, total int) string {
 	if filled > barWidth {
 		filled = barWidth
 	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+	// ▰▱ render as clean solid/outline cells; ░ dithers into visual noise
+	// in Telegram's monospace font.
+	return strings.Repeat("▰", filled) + strings.Repeat("▱", barWidth-filled)
 }
 
 func clip(value string, maxRunes int) string {
