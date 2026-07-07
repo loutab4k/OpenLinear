@@ -76,10 +76,14 @@ func Render(store tracker.Store, request PageRequest, now time.Time) Page {
 	}
 }
 
-func RenderLoadError(settings tracker.Settings, now time.Time) Page {
+func RenderLoadError(settings tracker.Settings, now time.Time, detail string) Page {
 	settings = settings.WithDefaults()
 	r := renderer{store: tracker.Store{Settings: settings}, now: now}
-	return r.messagePage("load error", "could not load tracker data", "Retry", "r:m")
+	message := "could not load tracker data"
+	if strings.TrimSpace(detail) != "" {
+		message += ": " + detail
+	}
+	return r.messagePage("load error", message, "Retry", "r:m")
 }
 
 func newPage(htmlBody string, buttons [][]Button) Page {

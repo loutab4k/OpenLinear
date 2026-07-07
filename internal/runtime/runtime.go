@@ -312,11 +312,11 @@ func (a *App) handleUpdate(ctx context.Context, client telegram.Client, update t
 	if err != nil {
 		// A broken boards file must be visible, not silently fall back to
 		// rendering some other board.
-		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
+		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now(), err.Error()))
 	}
 	store, err := tracker.LoadDir(dir)
 	if err != nil {
-		page := tui.RenderLoadError(tracker.DefaultSettings(), time.Now())
+		page := tui.RenderLoadError(tracker.DefaultSettings(), time.Now(), err.Error())
 		return a.editOrSend(ctx, page)
 	}
 
