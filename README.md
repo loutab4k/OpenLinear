@@ -92,7 +92,8 @@ docker compose run --rm openlinear sync --data-dir /data
 docker compose up openlinear
 ```
 
-With the CLI installed locally (`make install`), the docker bot lifecycle is:
+With the CLI installed locally (`make install` or Homebrew), the docker bot
+lifecycle is:
 
 ```bash
 ol start    # docker compose up -d (add --build after code changes)
@@ -100,6 +101,10 @@ ol status
 ol logs -f
 ol stop
 ```
+
+These work from any directory: `ol` looks for `OPENLINEAR_COMPOSE_DIR`, then a
+compose file upward from the current directory, then the project directory
+remembered from the last successful run.
 
 Environment variables (`OPENLINEAR_BOT_TOKEN`, `OPENLINEAR_CHAT_ID`) still work
 and always win over stored credentials — use them in CI.
