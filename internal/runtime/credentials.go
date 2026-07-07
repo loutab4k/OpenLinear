@@ -109,7 +109,7 @@ func Whoami(ctx context.Context) (telegram.User, error) {
 		token = strings.TrimSpace(creds.BotToken)
 	}
 	if token == "" {
-		return telegram.User{}, errors.New("no bot token: run `openlinear login` or set OPENLINEAR_BOT_TOKEN")
+		return telegram.User{}, errors.New("no bot token: run `ol auth login` or set OPENLINEAR_BOT_TOKEN")
 	}
 	client, err := authClient(token)
 	if err != nil {

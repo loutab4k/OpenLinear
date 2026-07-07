@@ -1,4 +1,4 @@
-.PHONY: fmt fmt-check test vet check render validate dogfood dogfood-sync
+.PHONY: fmt fmt-check test vet check render validate install dogfood dogfood-sync
 
 DOGFOOD_DIR ?= examples/openlinear
 
@@ -24,6 +24,10 @@ validate:
 
 render:
 	go run ./cmd/openlinear render --data-dir examples/basic
+
+# Install the CLI as `ol` into GOPATH/bin.
+install:
+	go build -trimpath -o "$$(go env GOPATH)/bin/ol" ./cmd/openlinear
 
 # Dogfood: OpenLinear's own board (examples/openlinear).
 dogfood:

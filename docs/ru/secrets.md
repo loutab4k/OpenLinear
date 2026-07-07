@@ -24,17 +24,24 @@
 ## Аутентификация через CLI
 
 ```bash
-# проверить токен через getMe и сохранить (0600) вне репозитория
-printf %s "$TOKEN" | openlinear login --chat-id 123456789
-openlinear login --token-file /path/to/token   # альтернативный источник
+# интерактивно: скрытый ввод токена + опциональный chat id
+ol auth login
 
-openlinear whoami    # печатает @username бота (никогда — токен)
-openlinear logout    # удаляет сохранённый файл
+# неинтерактивные источники
+printf %s "$TOKEN" | ol auth login --chat-id 123456789
+ol auth login --token-file /path/to/token
+
+ol auth whoami    # печатает @username бота (никогда — токен)
+ol auth logout    # удаляет сохранённый файл
 ```
 
-Токен читается из `--token-file`, затем `OPENLINEAR_BOT_TOKEN`, затем stdin —
-никогда из флага. `login` пишет в пользовательский config-каталог ОС с правами
-`0600`:
+В Docker: `docker compose run --rm openlinear auth login` — учётные данные
+сохраняются в volume `config` (`XDG_CONFIG_HOME=/config`).
+
+Токен читается из `--token-file`, затем `OPENLINEAR_BOT_TOKEN`, затем скрытый
+интерактивный ввод (на TTY) или piped stdin — никогда из флага. `auth login`
+проверяет токен через getMe и пишет в пользовательский config-каталог ОС с
+правами `0600`:
 
 - Linux: `~/.config/openlinear/credentials.json` (учитывает `XDG_CONFIG_HOME`)
 - macOS: `~/Library/Application Support/openlinear/credentials.json`
