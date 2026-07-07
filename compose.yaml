@@ -2,6 +2,7 @@ services:
   openlinear:
     build:
       context: .
+    restart: unless-stopped
     environment:
       OPENLINEAR_BOT_TOKEN: ${OPENLINEAR_BOT_TOKEN:-}
       OPENLINEAR_CHAT_ID: ${OPENLINEAR_CHAT_ID:-}

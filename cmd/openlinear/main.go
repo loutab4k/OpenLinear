@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -51,6 +52,14 @@ func run(args []string) error {
 		return handleLogout()
 	case "whoami":
 		return handleWhoami()
+	case "start":
+		return dockerCompose(append([]string{"up", "-d"}, append(args[1:], "openlinear")...)...)
+	case "stop":
+		return dockerCompose("stop", "openlinear")
+	case "status":
+		return dockerCompose("ps", "openlinear")
+	case "logs":
+		return dockerCompose(append([]string{"logs"}, append(args[1:], "openlinear")...)...)
 	case "version", "--version", "-v":
 		fmt.Println(version)
 		return nil
@@ -87,6 +96,21 @@ func dataDirFlag(fs *flag.FlagSet) *string {
 		def = "openlinear"
 	}
 	return fs.String("data-dir", def, "directory with OpenLinear JSON files")
+}
+
+// dockerCompose shells out to `docker compose <args...>` for the bot
+// lifecycle (start/stop/status/logs). It needs a compose.yaml in the current
+// directory (or a parent — compose searches upward).
+func dockerCompose(args ...string) error {
+	cmd := exec.Command("docker", append([]string{"compose"}, args...)...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return errors.New("docker is required for `ol start/stop`: install Docker or run the bot directly with `ol run`")
+		}
+		return err
+	}
+	return nil
 }
 
 func handleAuth(args []string) error {
@@ -326,6 +350,11 @@ Usage:
   ol render [--data-dir openlinear] [page] [--json]
   ol sync [--data-dir openlinear] [--boards boards.json]
   ol run [--data-dir openlinear] [--boards boards.json]
+
+  ol start [--build]   # run the bot in docker (docker compose up -d)
+  ol stop              # stop the docker bot
+  ol status            # show the docker bot state
+  ol logs [-f]         # show the docker bot logs
 
   ol auth login [--chat-id N] [--token-file path]   # interactive hidden prompt on a TTY;
                                                     # also reads stdin/file/env; stored 0600
