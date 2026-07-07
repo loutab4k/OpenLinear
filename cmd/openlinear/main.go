@@ -453,53 +453,93 @@ func splitCSV(value string) []string {
 }
 
 func usage() error {
-	fmt.Print(usageText())
+	fmt.Print(usageStyled(stdoutIsTTY() && os.Getenv("NO_COLOR") == ""))
 	return nil
 }
 
-func usageText() string {
-	return `OpenLinear (ol) — Telegram-native project tracker
+func usageText() string { return usageStyled(false) }
 
-Board (all take [--data-dir openlinear]):
-  ol init                      create sample data files
-  ol validate                  check data files and every rendered page
-  ol render [page] [--json]    preview the board in the terminal
+func stdoutIsTTY() bool {
+	info, err := os.Stdout.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
 
-Issues:
-  ol issue list [--status S] [--project P] [--json]
-  ol issue show <id>
-  ol issue add --title T [--id --status --priority --project --assignee --labels a,b]
-  ol issue move <id> <status>
-  ol issue done <id>
-  ol issue assign <id> <name>
-  ol issue archive <id>
+type usageSection struct {
+	title string
+	note  string
+	items [][2]string // command, description
+}
 
-Bot:
-  ol sync [--boards boards.json]    send/refresh the status message once
-  ol run  [--boards boards.json]    long-poll in the foreground
-  ol start [--build]                run the bot in docker (compose up -d)
-  ol update                         rebuild the image and restart the bot
-  ol stop                           stop the docker bot
-  ol status                         show the docker bot state
-  ol logs [-f]                      show the docker bot logs
+var usageSections = []usageSection{
+	{title: "BOARD", note: "all take --data-dir openlinear", items: [][2]string{
+		{"init", "create sample data files"},
+		{"validate", "check data files and every rendered page"},
+		{"render [page] [--json]", "preview the board in the terminal"},
+	}},
+	{title: "ISSUES", items: [][2]string{
+		{"issue list [flags]", "list issues (--status --project --json)"},
+		{"issue show <id>", "show one issue"},
+		{"issue add --title T [flags]", "add an issue (--id --status --priority …)"},
+		{"issue move <id> <status>", "change status"},
+		{"issue done <id>", "mark done"},
+		{"issue assign <id> <name>", "set assignee"},
+		{"issue archive <id>", "archive an issue"},
+	}},
+	{title: "BOT", items: [][2]string{
+		{"sync [--boards file]", "send/refresh the status message once"},
+		{"run [--boards file]", "long-poll in the foreground"},
+		{"start [--build]", "run the bot in docker (compose up -d)"},
+		{"update", "rebuild the image and restart the bot"},
+		{"stop", "stop the docker bot"},
+		{"status", "show the docker bot state"},
+		{"logs [-f]", "show the docker bot logs"},
+	}},
+	{title: "AUTH", note: "token: hidden TTY prompt, stdin, --token-file or env; stored 0600", items: [][2]string{
+		{"auth login [--chat-id N]", "store bot token and chat id"},
+		{"auth whoami", "show the authenticated bot"},
+		{"auth logout", "remove stored credentials"},
+	}},
+	{title: "MISC", items: [][2]string{
+		{"version", "print version"},
+		{"help", "show this help"},
+	}},
+	{title: "RENDER PAGES", items: [][2]string{
+		{"m", "main"},
+		{"p", "menu"},
+		{"<code>", "category page from settings.json"},
+		{"<code>:2", "category page 2"},
+		{"i:DEMO-1:<src>", "issue page"},
+	}},
+}
 
-Auth (token: hidden prompt on a TTY, or stdin/--token-file/env; stored 0600):
-  ol auth login [--chat-id N] [--token-file path]
-  ol auth whoami
-  ol auth logout
-
-Misc:
-  ol version
-  ol help
-
-Render pages:
-  m              main
-  p              menu
-  <code>         category page from settings.json
-  <code>:2       category page 2
-  i:DEMO-1:<src> issue page
-
-`
+func usageStyled(color bool) string {
+	bold, dim, accent, reset := "", "", "", ""
+	if color {
+		bold, dim, accent, reset = "\x1b[1m", "\x1b[2m", "\x1b[36m", "\x1b[0m"
+	}
+	width := 0
+	for _, s := range usageSections {
+		for _, it := range s.items {
+			if len(it[0]) > width {
+				width = len(it[0])
+			}
+		}
+	}
+	var b strings.Builder
+	b.WriteString(bold + "ol" + reset + " — Telegram-native project tracker\n\n")
+	b.WriteString(bold + "USAGE" + reset + "\n  ol <command> [flags]\n")
+	for _, s := range usageSections {
+		b.WriteString("\n" + bold + accent + s.title + reset)
+		if s.note != "" {
+			b.WriteString("  " + dim + s.note + reset)
+		}
+		b.WriteString("\n")
+		for _, it := range s.items {
+			b.WriteString(fmt.Sprintf("  %-*s  %s%s%s\n", width, it[0], dim, it[1], reset))
+		}
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 func initDataDir(dir string) error {
