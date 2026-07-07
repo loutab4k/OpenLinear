@@ -4,14 +4,12 @@ WORKDIR /src
 COPY go.mod ./
 COPY cmd ./cmd
 COPY internal ./internal
-COPY examples ./examples
 RUN CGO_ENABLED=0 go build -o /out/openlinear ./cmd/openlinear
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=build /out/openlinear /usr/local/bin/openlinear
-COPY --from=build /src/examples ./examples
 USER nonroot:nonroot
 ENTRYPOINT ["openlinear"]
 CMD ["run", "--data-dir", "/data"]

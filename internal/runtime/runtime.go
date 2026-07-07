@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ const defaultStateFile = ".openlinear/state.json"
 type Config struct {
 	DataDir        string
 	StatePath      string
+	BoardsFile     string
 	BotToken       string
 	ChatID         int64
 	MessageID      int
@@ -37,13 +39,15 @@ type App struct {
 }
 
 type State struct {
-	MessageID int `json:"message_id"`
+	MessageID int    `json:"message_id"`
+	BoardID   string `json:"board_id,omitempty"`
 }
 
 func ConfigFromEnv(args []string) (Config, []string, error) {
 	cfg := Config{
 		DataDir:        env("OPENLINEAR_DATA_DIR", "openlinear"),
 		StatePath:      env("OPENLINEAR_STATE_PATH", defaultStateFile),
+		BoardsFile:     env("OPENLINEAR_BOARDS_FILE", ""),
 		BotToken:       os.Getenv("OPENLINEAR_BOT_TOKEN"),
 		APIBaseURL:     env("OPENLINEAR_API_BASE_URL", "https://api.telegram.org"),
 		PollTimeout:    durationEnv("OPENLINEAR_POLL_TIMEOUT_SECONDS", 30*time.Second),
@@ -81,6 +85,7 @@ func ConfigFromEnv(args []string) (Config, []string, error) {
 	fs := flag.NewFlagSet("openlinear", flag.ContinueOnError)
 	fs.StringVar(&cfg.DataDir, "data-dir", cfg.DataDir, "directory with OpenLinear JSON files")
 	fs.StringVar(&cfg.StatePath, "state", cfg.StatePath, "state file path")
+	fs.StringVar(&cfg.BoardsFile, "boards", cfg.BoardsFile, "path to boards.json for multi-board mode")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, nil, err
 	}
@@ -91,7 +96,7 @@ func New(cfg Config) *App {
 	return &App{cfg: cfg}
 }
 
-func (a *App) Validate(ctx context.Context) error {
+func (a *App) Validate() error {
 	store, err := tracker.LoadDir(a.cfg.DataDir)
 	if err != nil {
 		return err
@@ -102,11 +107,10 @@ func (a *App) Validate(ctx context.Context) error {
 			return err
 		}
 	}
-	_ = ctx
 	return nil
 }
 
-func (a *App) Render(ctx context.Context, request tui.PageRequest) (string, error) {
+func (a *App) Render(request tui.PageRequest) (string, error) {
 	store, err := tracker.LoadDir(a.cfg.DataDir)
 	if err != nil {
 		return "", err
@@ -115,7 +119,6 @@ func (a *App) Render(ctx context.Context, request tui.PageRequest) (string, erro
 	if err := tui.ValidatePage(page); err != nil {
 		return "", err
 	}
-	_ = ctx
 	return page.Text, nil
 }
 
@@ -178,12 +181,15 @@ func (a *App) Sync(ctx context.Context) error {
 	if err := a.requireTelegramConfig(); err != nil {
 		return err
 	}
-	store, err := tracker.LoadDir(a.cfg.DataDir)
+	dir, err := a.activeDataDir()
 	if err != nil {
 		return err
 	}
-	page := tui.Render(store, tui.PageRequest{Kind: tui.PageMain}, time.Now())
-	return a.editOrSend(ctx, page)
+	store, err := tracker.LoadDir(dir)
+	if err != nil {
+		return err
+	}
+	return a.editOrSend(ctx, a.renderBotPage(store, tui.PageRequest{Kind: tui.PageMain}))
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -196,6 +202,7 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	backoff := time.Second
 	for {
 		select {
 		case <-ctx.Done():
@@ -209,20 +216,82 @@ func (a *App) Run(ctx context.Context) error {
 			Limit:   a.cfg.PollLimit,
 		})
 		if err != nil {
-			return err
+			// Transient failures (network, 429) must not kill a long-lived bot:
+			// log, back off, retry. Only a cancelled context stops the loop.
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			log.Printf("openlinear: getUpdates: %v (retrying in %s)", err, backoff)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+			}
+			if backoff < 30*time.Second {
+				backoff *= 2
+			}
+			continue
 		}
+		backoff = time.Second
 
 		for _, update := range updates {
 			offset = update.UpdateID + 1
-			if err := a.handleUpdate(ctx, update); err != nil {
-				return err
+			if err := a.handleUpdate(ctx, client, update); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				log.Printf("openlinear: update %d: %v", update.UpdateID, err)
 			}
 		}
 	}
 }
 
-func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
-	store, err := tracker.LoadDir(a.cfg.DataDir)
+// allowedChat rejects updates from any chat other than the configured one, so
+// strangers who find the bot cannot read the board or switch it.
+func (a *App) allowedChat(update telegram.Update) bool {
+	if update.Message != nil {
+		return update.Message.Chat.ID == a.cfg.ChatID
+	}
+	if update.CallbackQuery != nil {
+		return update.CallbackQuery.Message != nil && update.CallbackQuery.Message.Chat.ID == a.cfg.ChatID
+	}
+	return false
+}
+
+func (a *App) handleUpdate(ctx context.Context, client telegram.Client, update telegram.Update) error {
+	if !a.allowedChat(update) {
+		return nil
+	}
+	if update.CallbackQuery != nil {
+		// Best-effort ack so the client stops the button spinner immediately.
+		if err := client.AnswerCallbackQuery(ctx, update.CallbackQuery.ID); err != nil {
+			log.Printf("openlinear: answerCallbackQuery: %v", err)
+		}
+	}
+
+	// Board switching is a workspace-level action, handled before loading a board.
+	if a.boardMode() {
+		if update.CallbackQuery != nil {
+			base := strings.TrimPrefix(strings.TrimSpace(update.CallbackQuery.Data), "r:")
+			if base == "bd" {
+				return a.showBoards(ctx)
+			}
+			if strings.HasPrefix(base, "bd:") {
+				return a.selectBoard(ctx, strings.TrimPrefix(base, "bd:"))
+			}
+		}
+		if update.Message != nil && firstField(update.Message.Text) == "/boards" {
+			return a.showBoards(ctx)
+		}
+	}
+
+	dir, err := a.activeDataDir()
+	if err != nil {
+		// A broken boards file must be visible, not silently fall back to
+		// rendering some other board.
+		return a.editOrSend(ctx, tui.RenderLoadError(tracker.DefaultSettings(), time.Now()))
+	}
+	store, err := tracker.LoadDir(dir)
 	if err != nil {
 		page := tui.RenderLoadError(tracker.DefaultSettings(), time.Now())
 		return a.editOrSend(ctx, page)
@@ -230,15 +299,13 @@ func (a *App) handleUpdate(ctx context.Context, update telegram.Update) error {
 
 	if update.CallbackQuery != nil {
 		request := ParseCallback(update.CallbackQuery.Data)
-		page := tui.Render(store, request, time.Now())
-		return a.editOrSend(ctx, page)
+		return a.editOrSend(ctx, a.renderBotPage(store, request))
 	}
 
 	if update.Message != nil {
 		request := ParseCommand(update.Message.Text)
 		if !request.IsZero() {
-			page := tui.Render(store, request, time.Now())
-			return a.editOrSend(ctx, page)
+			return a.editOrSend(ctx, a.renderBotPage(store, request))
 		}
 	}
 

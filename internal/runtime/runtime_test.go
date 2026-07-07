@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/loutab4k/OpenLinear/internal/tui"
@@ -96,5 +97,37 @@ func TestParseCallbackProjects(t *testing.T) {
 	}
 	if got := CallbackFor(tui.PageRequest{ProjectID: "backend"}); got != "pr:backend" {
 		t.Fatalf("CallbackFor project => %q", got)
+	}
+}
+
+func TestBoardResolution(t *testing.T) {
+	dir := t.TempDir()
+	boardsPath := filepath.Join(dir, "boards.json")
+	if err := os.WriteFile(boardsPath, []byte(`[
+  {"id":"ol","name":"OpenLinear","data_dir":"examples/openlinear"},
+  {"id":"demo","name":"Demo","data_dir":"examples/basic"}
+]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statePath := filepath.Join(dir, "state.json")
+
+	// no boards file → plain data dir
+	plain := New(Config{DataDir: "openlinear"})
+	if got, _ := plain.activeDataDir(); got != "openlinear" {
+		t.Fatalf("plain activeDataDir = %q", got)
+	}
+
+	// boards file, no selection → first board
+	app := New(Config{DataDir: "openlinear", BoardsFile: boardsPath, StatePath: statePath})
+	if got, _ := app.activeDataDir(); got != "examples/openlinear" {
+		t.Fatalf("default board = %q, want examples/openlinear", got)
+	}
+
+	// selection in state → that board's dir
+	if err := app.saveState(State{BoardID: "demo"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := app.activeDataDir(); got != "examples/basic" {
+		t.Fatalf("selected board = %q, want examples/basic", got)
 	}
 }

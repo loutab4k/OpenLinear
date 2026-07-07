@@ -25,23 +25,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Check formatting
-        run: |
-          test -z "$(gofmt -l ./cmd ./internal)"
-
-      - name: Test
-        run: go test ./...
-
-      - name: Vet
-        run: go vet ./...
+      # Same gate as local `make check`: fmt-check, vet, test -race, validate.
+      - name: Quality gate
+        run: make check
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Validate example data
-        run: go run ./cmd/openlinear validate --data-dir examples/basic
 
       - name: Render smoke test
         run: go run ./cmd/openlinear render --data-dir examples/basic > /tmp/openlinear-render.txt
@@ -53,7 +44,7 @@ jobs:
           id="$(go run ./cmd/openlinear issue add --data-dir "$dir" --title 'CI smoke' --priority 1 --labels ci,smoke)"
           go run ./cmd/openlinear issue move   --data-dir "$dir" "$id" 'In Progress'
           go run ./cmd/openlinear issue assign --data-dir "$dir" "$id" 'CI'
-          go run ./cmd/openlinear issue done   --data-dir "$dir" "$id"
+          go run ./cmd/openlinear issue 'done' --data-dir "$dir" "$id"
           go run ./cmd/openlinear issue archive --data-dir "$dir" "$id"
           go run ./cmd/openlinear validate --data-dir "$dir"
           go run ./cmd/openlinear render --data-dir "$dir" --json > /tmp/openlinear-board.json

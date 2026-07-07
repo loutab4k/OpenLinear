@@ -1,6 +1,6 @@
 # Архитектура
 
-OpenLinear специально сделан небольшим: project data на входе, Linear-like Telegram TUI на выходе. Архитектура построена вокруг заменяемых границ, поэтому можно начать с JSON и позже добавить экспорт из своих инструментов.
+OpenLinear специально сделан небольшим: project data на входе, Linear-like Telegram **rich-сообщение** на выходе (Bot API 10.1). Архитектура построена вокруг заменяемых границ, поэтому можно начать с JSON и позже добавить экспорт из своих инструментов.
 
 ## Компоненты
 
@@ -16,11 +16,10 @@ tracker.Store
       │
       ▼
 tui.Render
-  - main page
-  - menu
-  - category pages
-  - issue pages
-  - width validation
+  - main / menu / category / issue страницы
+  - пикер проектов + страницы проектов
+  - rich-HTML тело (заголовки, таблицы,
+    цитаты, details) + валидация
       │
       ▼
 runtime.App
@@ -30,11 +29,12 @@ runtime.App
       │
       ▼
 Telegram Bot API
+  - sendRichMessage / editMessageText(rich_message)
 ```
 
 ## Одно Сообщение, Много Страниц
 
-OpenLinear хранит одно Telegram status message в локальном state-файле. Любое нажатие кнопки редактирует это сообщение через `editMessageText`.
+OpenLinear хранит одно Telegram status message в локальном state-файле. Любое нажатие кнопки редактирует это сообщение через `editMessageText` с телом `rich_message`.
 
 В чате получается интерфейс как приложение:
 
@@ -42,6 +42,7 @@ OpenLinear хранит одно Telegram status message в локальном s
 - меню содержит динамические категории;
 - страницы категорий содержат плитки задач;
 - страницы задач содержат полные детали;
+- пикер проектов сужает прогресс до одного проекта;
 - навигация не создаёт спам в чате.
 
 ## Stateless Навигация
@@ -55,6 +56,8 @@ b              category code
 b:2            category page 2
 i:DEMO-1:b     issue DEMO-1, back to category b
 r:i:DEMO-1:b   refresh the same issue page
+pr             пикер проектов
+pr:backend     страница проекта (project id)
 ```
 
 Сервер не хранит navigation stack. После рестарта кнопки остаются рабочими.
@@ -89,16 +92,18 @@ docker compose up openlinear
 
 ## Секреты
 
-OpenLinear читает секреты из env. Doppler рекомендуется, но не обязателен.
+Единственный секрет — токен бота Telegram. Порядок разрешения: env
+(`OPENLINEAR_BOT_TOKEN`) → файл учётных данных от `openlinear login` (0600, в
+config-каталоге ОС, вне репозитория). Токен нигде не печатается и не
+передаётся флагом. См. [`secrets.md`](secrets.md).
 
 Поддерживаемые схемы:
 
 ```bash
-docker compose up openlinear
+openlinear login                       # локально: токен хранится 0600
+docker compose up openlinear           # CI/host: токен через env
 doppler run -- docker compose up openlinear
-systemd EnvironmentFile
-Kubernetes Secret
-Nomad template
+systemd EnvironmentFile / Kubernetes Secret / Nomad template
 ```
 
 ## Точки Расширения

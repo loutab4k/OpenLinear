@@ -86,6 +86,47 @@ func newPage(htmlBody string, buttons [][]Button) Page {
 	return Page{HTML: htmlBody, Text: htmlToText(htmlBody), Buttons: buttons}
 }
 
+// BoardInfo is one board shown in the multi-board picker.
+type BoardInfo struct {
+	ID   string
+	Name string
+}
+
+// RenderBoards renders the workspace board picker (multi-board mode).
+func RenderBoards(boards []BoardInfo, activeID string, now time.Time) Page {
+	r := renderer{store: tracker.Store{Settings: tracker.DefaultSettings()}, now: now}
+	var b strings.Builder
+	r.header(&b, "boards")
+	r.heading(&b, "🗂 Boards")
+	if len(boards) == 0 {
+		b.WriteString("<blockquote>— no boards</blockquote>")
+		return newPage(b.String(), [][]Button{{{Text: "← Main", CallbackData: "m"}}})
+	}
+	var lines []string
+	for _, bd := range boards {
+		mark := "•"
+		if bd.ID == activeID {
+			mark = "✅"
+		}
+		lines = append(lines, mark+" "+esc1(bd.Name))
+	}
+	b.WriteString("<blockquote>" + strings.Join(lines, "<br>") + "</blockquote>")
+
+	buttons := [][]Button{{{Text: "← Main", CallbackData: "m"}}}
+	btnRow := []Button{}
+	for _, bd := range boards {
+		btnRow = append(btnRow, Button{Text: clip(bd.Name, 20), CallbackData: "bd:" + bd.ID})
+		if len(btnRow) == 2 {
+			buttons = append(buttons, btnRow)
+			btnRow = []Button{}
+		}
+	}
+	if len(btnRow) > 0 {
+		buttons = append(buttons, btnRow)
+	}
+	return newPage(b.String(), buttons)
+}
+
 func (r renderer) mainPage() Page {
 	progress := r.store.Progress()
 	var b strings.Builder
@@ -264,7 +305,7 @@ func (r renderer) progressTable(b *strings.Builder, progress tracker.Progress) {
 	r.heading(b, fmt.Sprintf("📊 Progress %d/%d · %d%%", progress.Done, progress.Total, progress.Percent))
 	b.WriteString("<table>")
 	for _, status := range r.store.Settings.StatusOrder {
-		b.WriteString("<tr><td>" + esc1(r.statusLabel(status)) + "</td><td><code>" +
+		b.WriteString("<tr><td>" + esc1(r.statusGlyph(status)+" "+r.statusLabel(status)) + "</td><td><code>" +
 			bar(progress.ByStatus[status], progress.Total) + "</code></td><td>" +
 			fmt.Sprintf("%d", progress.ByStatus[status]) + "</td></tr>")
 	}
@@ -277,19 +318,19 @@ func (r renderer) issueSection(b *strings.Builder, title string, issues []tracke
 		b.WriteString("<blockquote>— empty</blockquote>")
 		return
 	}
-	var lines []string
+	var entries []string
 	for i, issue := range issues {
 		if i >= limit {
-			lines = append(lines, fmt.Sprintf("… +%d more", len(issues)-limit))
+			entries = append(entries, fmt.Sprintf("… +%d more", len(issues)-limit))
 			break
 		}
 		line := r.issueLine(issue)
 		if tags := r.compactLabels(issue.Labels); len(tags) > 0 {
 			line += "  " + esc1(strings.Join(tags, ", "))
 		}
-		lines = append(lines, line)
+		entries = append(entries, line+"<br>"+esc1(issue.Title))
 	}
-	b.WriteString("<blockquote>" + strings.Join(lines, "<br>") + "</blockquote>")
+	b.WriteString("<blockquote>" + strings.Join(entries, "<br>") + "</blockquote>")
 }
 
 func (r renderer) attentionSection(b *strings.Builder) {

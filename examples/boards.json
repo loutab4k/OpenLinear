@@ -1,0 +1,4 @@
+[
+  { "id": "ol", "name": "OpenLinear", "data_dir": "examples/openlinear" },
+  { "id": "demo", "name": "Demo Team", "data_dir": "examples/basic" }
+]
