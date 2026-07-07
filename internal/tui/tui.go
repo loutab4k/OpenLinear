@@ -490,6 +490,11 @@ func (r renderer) issuesByStatus(status string) []tracker.Issue {
 }
 
 func (r renderer) issuesForDefaultCategory(code string) []tracker.Issue {
+	// A typo in main_preview_category must not silently render an empty
+	// section forever: fall back to the first configured category.
+	if _, ok := r.category(code); !ok && len(r.store.Settings.Categories) > 0 {
+		code = r.store.Settings.Categories[0].Code
+	}
 	return r.store.IssuesForCategory(code, r.now)
 }
 

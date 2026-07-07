@@ -156,3 +156,18 @@ func TestProjectPages(t *testing.T) {
 		t.Fatalf("project page leaked another project's issue:\n%s", page.Text)
 	}
 }
+
+func TestMainPreviewCategoryFallsBackWhenUnknown(t *testing.T) {
+	settings := tracker.DefaultSettings()
+	settings.MainPreviewCategory = "no-such-code"
+	store := tracker.Store{
+		Settings: settings,
+		Issues: []tracker.Issue{
+			{ID: "DEMO-1", Title: "Queued work", Status: tracker.StatusBacklog},
+		},
+	}
+	page := Render(store, PageRequest{Kind: PageMain}, time.Date(2026, 1, 4, 10, 0, 0, 0, time.UTC))
+	if !strings.Contains(page.Text, "DEMO-1") {
+		t.Fatalf("main page should fall back to the first category instead of an empty section:\n%s", page.Text)
+	}
+}
