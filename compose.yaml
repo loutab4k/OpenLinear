@@ -17,8 +17,10 @@ services:
     volumes:
       - ./openlinear:/data
       - ./.openlinear:/state
-      - config:/config
+      # `creds` (not the older `config`): the volume must be created from an
+      # image that pre-owns /config as nonroot, or auth login cannot write.
+      - creds:/config
     command: ["run", "--data-dir", "/data"]
 
 volumes:
-  config:
+  creds:
