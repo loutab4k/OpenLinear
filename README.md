@@ -48,6 +48,16 @@ This repository is an early standalone product foundation. The current version s
 
 Planned connectors can be added later without changing the TUI layer.
 
+## Install With Homebrew
+
+```bash
+brew install loutab4k/tap/openlinear
+ol --help
+```
+
+The formula installs prebuilt release binaries as `ol` (with an `openlinear`
+symlink) and is updated automatically on every release.
+
 ## Quick Start With Docker
 
 This is the recommended path. You only need Docker and a Telegram bot.
