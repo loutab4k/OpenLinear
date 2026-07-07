@@ -450,12 +450,14 @@ func DefaultSettings() Settings {
 			StatusBacklog:    "backlog",
 			StatusDone:       "done",
 		},
+		// Monochrome geometry, not emoji: the whole page reads in one
+		// typographic voice (opencode/x.ai-CLI style).
 		StatusGlyphs: map[string]string{
-			StatusInProgress: "🔄",
-			StatusInReview:   "👀",
-			StatusTodo:       "🆕",
-			StatusBacklog:    "📥",
-			StatusDone:       "✅",
+			StatusInProgress: "◐",
+			StatusInReview:   "◉",
+			StatusTodo:       "○",
+			StatusBacklog:    "◌",
+			StatusDone:       "●",
 		},
 	}
 }
