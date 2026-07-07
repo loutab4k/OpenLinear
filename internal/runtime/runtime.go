@@ -41,6 +41,7 @@ type App struct {
 type State struct {
 	MessageID int    `json:"message_id"`
 	BoardID   string `json:"board_id,omitempty"`
+	Offset    int64  `json:"offset,omitempty"`
 }
 
 func ConfigFromEnv(args []string) (Config, []string, error) {
@@ -197,7 +198,13 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 
-	offset := int64(0)
+	// Resume from the persisted offset so updates handled before a restart
+	// (e.g. a stale board-switch callback) are not replayed.
+	state, err := a.loadState()
+	if err != nil {
+		return err
+	}
+	offset := state.Offset
 	client, err := a.telegramClient()
 	if err != nil {
 		return err
@@ -243,7 +250,23 @@ func (a *App) Run(ctx context.Context) error {
 				log.Printf("openlinear: update %d: %v", update.UpdateID, err)
 			}
 		}
+		if len(updates) > 0 {
+			if err := a.saveOffset(offset); err != nil {
+				log.Printf("openlinear: save offset: %v", err)
+			}
+		}
 	}
+}
+
+// saveOffset persists the poll offset without clobbering fields other
+// handlers may have written (message id, selected board).
+func (a *App) saveOffset(offset int64) error {
+	state, err := a.loadState()
+	if err != nil {
+		return err
+	}
+	state.Offset = offset
+	return a.saveState(state)
 }
 
 // allowedChat rejects updates from any chat other than the configured one, so
@@ -320,7 +343,7 @@ func ParseCommand(text string) tui.PageRequest {
 	switch fields[0] {
 	case "/start", "/status", "/refresh":
 		return tui.PageRequest{Kind: tui.PageMain}
-	case "/menu":
+	case "/menu", "/help":
 		return tui.PageRequest{Kind: tui.PageMenu}
 	case "/projects":
 		return tui.PageRequest{Kind: tui.PageProjects}

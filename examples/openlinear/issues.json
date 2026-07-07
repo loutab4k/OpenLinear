@@ -2,143 +2,381 @@
   {
     "id": "OL-1",
     "title": "Render pages as Bot API 10.1 rich messages",
-    "description": "Replace the monospace <pre> TUI with rich HTML (headings, tables, blockquotes, details) sent via sendRichMessage / editMessageText rich_message.",
+    "description": "Replace the monospace \u003cpre\u003e TUI with rich HTML (headings, tables, blockquotes, details) sent via sendRichMessage / editMessageText rich_message.",
     "status": "Done",
-    "priority": 1,
-    "project": "OpenLinear",
-    "labels": ["telegram", "ui"],
+    "status_type": "",
+    "priority": {
+      "value": 1,
+      "name": ""
+    },
+    "labels": [
+      "telegram",
+      "ui"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "https://github.com/loutab4k/OpenLinear/pull/1",
+    "git_branch_name": "",
     "created_at": "2026-07-06T09:00:00Z",
     "updated_at": "2026-07-06T13:20:00Z",
     "completed_at": "2026-07-06T13:20:00Z",
-    "url": "https://github.com/loutab4k/OpenLinear/pull/1"
+    "archived": false
   },
   {
     "id": "OL-2",
     "title": "CLI issue write commands (add/move/done/assign/archive)",
     "description": "Atomic, validated writes to issues.json so a human or agent can mutate the board without editing JSON by hand.",
     "status": "Done",
-    "priority": 1,
-    "project": "OpenLinear",
-    "labels": ["cli", "agent"],
+    "status_type": "",
+    "priority": {
+      "value": 1,
+      "name": ""
+    },
+    "labels": [
+      "cli",
+      "agent"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "https://github.com/loutab4k/OpenLinear/pull/1",
+    "git_branch_name": "",
     "created_at": "2026-07-06T09:30:00Z",
     "updated_at": "2026-07-06T13:20:00Z",
     "completed_at": "2026-07-06T13:20:00Z",
-    "url": "https://github.com/loutab4k/OpenLinear/pull/1"
+    "archived": false
   },
   {
     "id": "OL-3",
     "title": "render --json for agents",
     "description": "Emit board state (progress + active issues) as JSON so agents consume structure instead of parsing the TUI.",
     "status": "Done",
-    "priority": 2,
-    "project": "OpenLinear",
-    "labels": ["cli", "agent"],
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "cli",
+      "agent"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T10:00:00Z",
     "updated_at": "2026-07-06T13:20:00Z",
-    "completed_at": "2026-07-06T13:20:00Z"
+    "completed_at": "2026-07-06T13:20:00Z",
+    "archived": false
   },
   {
     "id": "OL-4",
     "title": "Sync RU docs and add CI issue smoke test",
     "description": "Mirror the rich-message + CLI changes into docs/ru and guard the write path in CI.",
     "status": "Done",
-    "priority": 3,
-    "project": "OpenLinear",
-    "labels": ["docs", "ci"],
+    "status_type": "",
+    "priority": {
+      "value": 3,
+      "name": ""
+    },
+    "labels": [
+      "docs",
+      "ci"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T12:00:00Z",
     "updated_at": "2026-07-06T13:35:00Z",
-    "completed_at": "2026-07-06T13:35:00Z"
+    "completed_at": "2026-07-06T13:35:00Z",
+    "archived": false
   },
   {
     "id": "OL-5",
     "title": "Fix gitleaks CI on pull requests",
     "description": "Full-depth checkout (fetch-depth: 0) so gitleaks can scan the commit range instead of failing on an unknown parent revision.",
     "status": "Done",
-    "priority": 2,
-    "project": "OpenLinear",
-    "labels": ["ci"],
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "ci"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T13:38:00Z",
     "updated_at": "2026-07-06T13:45:00Z",
-    "completed_at": "2026-07-06T13:45:00Z"
+    "completed_at": "2026-07-06T13:45:00Z",
+    "archived": false
   },
   {
     "id": "OL-6",
     "title": "Verify live rich-message send against a Bot API 10.1 client",
     "description": "Drive sync/run with a real bot token and chat, confirm the pinned message renders tables/headings and inline navigation edits the same message.",
     "status": "Done",
-    "priority": 1,
-    "project": "OpenLinear",
-    "labels": ["telegram", "risk:launch-blocker"],
+    "status_type": "",
+    "priority": {
+      "value": 1,
+      "name": ""
+    },
+    "labels": [
+      "telegram",
+      "risk:launch-blocker"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T13:50:00Z",
-    "started_at": "2026-07-03T10:00:00Z",
     "updated_at": "2026-07-06T14:25:00Z",
-    "completed_at": "2026-07-06T14:25:00Z"
+    "started_at": "2026-07-03T10:00:00Z",
+    "completed_at": "2026-07-06T14:25:00Z",
+    "archived": false
   },
   {
     "id": "OL-7",
     "title": "Plain-text fallback for clients older than Bot API 10.1",
     "description": "Optional: fall back to a plain sendMessage if rich_message is unsupported. Add only if rich proves flaky in the field.",
     "status": "Backlog",
-    "priority": 3,
+    "status_type": "",
+    "priority": {
+      "value": 3,
+      "name": ""
+    },
+    "labels": [
+      "telegram",
+      "compat"
+    ],
+    "assignee": "",
     "project": "OpenLinear",
-    "labels": ["telegram", "compat"],
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T13:52:00Z",
-    "updated_at": "2026-07-06T13:52:00Z"
+    "updated_at": "2026-07-06T13:52:00Z",
+    "archived": false
   },
   {
     "id": "OL-8",
     "title": "Dogfood: track OpenLinear on OpenLinear",
     "description": "Ship a real dataset describing this project's own board so render/sync/run can be tested against live data.",
     "status": "Done",
-    "priority": 2,
-    "project": "OpenLinear",
-    "labels": ["dx"],
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "dx"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T14:00:00Z",
-    "started_at": "2026-07-06T14:00:00Z",
     "updated_at": "2026-07-06T14:20:00Z",
-    "completed_at": "2026-07-06T14:20:00Z"
+    "started_at": "2026-07-06T14:00:00Z",
+    "completed_at": "2026-07-06T14:20:00Z",
+    "archived": false
   },
   {
     "id": "OL-9",
     "title": "Cache tracker reload in the run loop",
     "description": "run reloads all JSON on every update. Fine at current scale; add an mtime cache only if data grows.",
     "status": "Backlog",
-    "priority": 4,
+    "status_type": "",
+    "priority": {
+      "value": 4,
+      "name": ""
+    },
+    "labels": [
+      "perf"
+    ],
+    "assignee": "",
     "project": "OpenLinear",
-    "labels": ["perf"],
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T14:02:00Z",
-    "updated_at": "2026-07-06T14:02:00Z"
+    "updated_at": "2026-07-06T14:02:00Z",
+    "archived": false
   },
   {
     "id": "OL-10",
     "title": "Refresh architecture and pipeline docs for rich rendering",
     "description": "docs/architecture.md and docs/pipeline.md still assume the monospace renderer.",
     "status": "Todo",
-    "priority": 3,
+    "status_type": "",
+    "priority": {
+      "value": 3,
+      "name": ""
+    },
+    "labels": [
+      "docs"
+    ],
+    "assignee": "",
     "project": "OpenLinear",
-    "labels": ["docs"],
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T14:03:00Z",
-    "updated_at": "2026-07-06T14:03:00Z"
+    "updated_at": "2026-07-06T14:03:00Z",
+    "archived": false
   },
   {
     "id": "OL-11",
     "title": "Project picker + per-project stats in the bot",
     "description": "Select a project from projects.json and view progress and open work scoped to it. Groundwork for using OpenLinear across many projects on one board.",
     "status": "Done",
-    "priority": 2,
-    "project": "OpenLinear",
-    "labels": ["telegram", "ui"],
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "telegram",
+      "ui"
+    ],
     "assignee": "Alex",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
     "created_at": "2026-07-06T14:30:00Z",
-    "started_at": "2026-07-06T14:30:00Z",
     "updated_at": "2026-07-06T14:40:00Z",
-    "completed_at": "2026-07-06T14:40:00Z"
+    "started_at": "2026-07-06T14:30:00Z",
+    "completed_at": "2026-07-06T14:40:00Z",
+    "archived": false
+  },
+  {
+    "id": "OL-12",
+    "title": "Multi-board: switch between boards from one bot",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "telegram"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:41Z",
+    "updated_at": "2026-07-07T05:08:41Z",
+    "completed_at": "2026-07-07T05:08:41Z",
+    "archived": false
+  },
+  {
+    "id": "OL-13",
+    "title": "Resilient polling: backoff + per-update error isolation",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 1,
+      "name": ""
+    },
+    "labels": [
+      "quality"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:41Z",
+    "updated_at": "2026-07-07T05:08:41Z",
+    "completed_at": "2026-07-07T05:08:41Z",
+    "archived": false
+  },
+  {
+    "id": "OL-14",
+    "title": "Ack callbacks and restrict bot to the configured chat",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 1,
+      "name": ""
+    },
+    "labels": [
+      "risk:security"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:41Z",
+    "updated_at": "2026-07-07T05:08:42Z",
+    "completed_at": "2026-07-07T05:08:42Z",
+    "archived": false
+  },
+  {
+    "id": "OL-15",
+    "title": "Scannable main-page issue lines + clean progress bars",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "telegram"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:42Z",
+    "updated_at": "2026-07-07T05:08:42Z",
+    "completed_at": "2026-07-07T05:08:42Z",
+    "archived": false
+  },
+  {
+    "id": "OL-16",
+    "title": "httptest coverage for telegram client and bot flows",
+    "description": "",
+    "status": "Done",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "quality"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:42Z",
+    "updated_at": "2026-07-07T05:08:42Z",
+    "completed_at": "2026-07-07T05:08:42Z",
+    "archived": false
+  },
+  {
+    "id": "OL-17",
+    "title": "Release pipeline: version command + tagged binaries",
+    "description": "",
+    "status": "Todo",
+    "status_type": "",
+    "priority": {
+      "value": 2,
+      "name": ""
+    },
+    "labels": [
+      "infrastructure"
+    ],
+    "assignee": "",
+    "project": "OpenLinear",
+    "url": "",
+    "git_branch_name": "",
+    "created_at": "2026-07-07T05:08:42Z",
+    "updated_at": "2026-07-07T05:08:42Z",
+    "archived": false
   }
 ]

@@ -142,3 +142,26 @@ func TestHandleUpdateAcksCallbackAndRenders(t *testing.T) {
 		t.Fatalf("calls = %v, want [answerCallbackQuery sendRichMessage]", got)
 	}
 }
+
+func TestParseCommandHelp(t *testing.T) {
+	if got := ParseCommand("/help"); got.Kind != tui.PageMenu {
+		t.Fatalf("/help → %+v, want menu page", got)
+	}
+}
+
+func TestSaveOffsetKeepsOtherStateFields(t *testing.T) {
+	app := newTestApp(t, &fakeTelegram{})
+	if err := app.saveState(State{MessageID: 7, BoardID: "ol"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.saveOffset(99); err != nil {
+		t.Fatal(err)
+	}
+	state, err := app.loadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.MessageID != 7 || state.BoardID != "ol" || state.Offset != 99 {
+		t.Fatalf("state = %+v, want MessageID 7, BoardID ol, Offset 99", state)
+	}
+}
